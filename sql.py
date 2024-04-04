@@ -313,39 +313,3 @@ WHERE (m.matchdata -> 'info' -> 'gameId') :: bigint = {matchID}
 """
     return pd.read_sql_query(query, engine)
 
-
-def getSummonerMatchDataFromDatabase(matchID,summonerName):
-    """
-    Retrieves specific match data for a match from a PostgreSQL database.
-
-    Parameters:
-    - matchID: int, the ID of the match to retrieve data for
-
-    Returns:
-    - DataFrame: contains various match data for the specified match
-    """
-
-    connectionString = getDataFromConfig(key='Database')['ConnectionString']
-
-
-
-    engine = create_engine(connectionString)
-    query = f"""
-    SELECT matchdata
-    FROM matches
-    WHERE matchid = {matchID}
-    """
-    df = pd.read_sql_query(query, engine)
-
-    for i, j in enumerate(df['matchdata']['participants']):
-        if  getDataFromConfig(key='SummonerData')[summonerName]['puuid'] == df['matchdata']['participants'][i]['puuid']:
-            print(j)
-            summonerIndex = j
-            return summonerIndex
-
-
-
-
-getSummonerMatchDataFromDatabase('EUW1_6446981477','GuySun')
-## IM HERE
-## Not working, need to fix it later
