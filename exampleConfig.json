@@ -1,0 +1,19 @@
+{
+    "API": {
+        "KEY": "{API FROM RIOT}"
+    },
+    "SummonerData": {
+        "Summoner1": {
+            "puuid": "{summonerPuuid}"
+        },
+         "Summoner2": {
+            "puuid": "{summonerPuuid}"
+        },
+        "Summoner3": {
+            "puuid": "{summonerPuuid}"
+        }
+    },
+    "Database": {
+        "ConnectionString": "{StringToConnectToDatabase}"
+    }
+}
