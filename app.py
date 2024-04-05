@@ -1,16 +1,22 @@
-import streamlit as st
-
-from analysis import createMatchAnalysis
 from plot import *
-from sql import getSummonerNameFromDB
+from sql import getSummonerNameFromDB, getLastNMatchIDSOfSummonerFromDB, getGameStartTimestampAndSummonerChampionName
 
-# scatter = plot_scatter(df, 'assists', 'wards_placed')
+st.set_page_config(page_title="My Dashboard", layout="wide")
+
+summonerNameList = getSummonerNameFromDB()
+
+
+@st.cache_data
+def generateMatchLabels(match_ids, summoner_name):
+    labels = []
+    for match_id in match_ids:
+        matchID, startDate, championPlayed = getGameStartTimestampAndSummonerChampionName(match_id, summoner_name)
+        label = f"{startDate} || {championPlayed} || {matchID}"
+        labels.append(label)
+    return labels
 
 
 # Set the page configuration for the title and layout
-st.set_page_config(page_title="My Dashboard", layout="wide")
-summonerNameList = getSummonerNameFromDB()
-
 
 # Main title of your dashboard
 st.title("LoL Matches & Summoners Analysis")
@@ -20,54 +26,38 @@ with st.sidebar:
     st.header("Navigation")
     page_selection = st.radio("Go to", ["Home", "Matches", "Summoners"])
 
-
-
 # Home
 if page_selection == "Home":
     st.header("Home")
-    st.write("You can enter matchID in the box below to view correlation matrix of your match")
-    import streamlit as st
+    st.write("Enter a match ID in the field below to view the correlation matrix for the selected match.")
+    st.write(
+        "Additionally, you have the option to select a Summoner's Match ID from the dropdown menu provided for each summoner. ")
+    st.write(
+        "There is also a feature that allows you to view the last 3 matches for each summoner by clicking the "
+        "corresponding button.")
+    num_summoners = len(summonerNameList)
+    columns = st.columns(num_summoners)
 
-    # Using columns to control button width
-    col1, col2, col3 = st.columns([2, 2, 2])
+    for index, summonerName in enumerate(summonerNameList):
+        with columns[index]:
+            summonerLast3MatchIDS = getLastNMatchIDSOfSummonerFromDB(summonerName, 3)
+            gamesInfo = [getGameStartTimestampAndSummonerChampionName(matchID, summonerName) for matchID in
+                         summonerLast3MatchIDS]
 
-    with col1:
-        st.subheader(summonerNameList[0])
-        if st.button('Button with '):
-            st.success('Button clicked!') # Empty space, can be used for better alignment
+            st.write('')  # Space
+            st.subheader(summonerName)
 
-    with col2:
-        st.subheader(summonerNameList[1])
-        if st.button('Button with Controlled Width'):
-            st.success('Button clicked!')
+            selectBoxLabeledMatches = generateMatchLabels(getLastNMatchIDSOfSummonerFromDB(summonerName, 50),
+                                                          summonerName)
+            st.selectbox('Summoner Matches', selectBoxLabeledMatches, key=f'selectbox_{summonerName}')
 
-    with col3:
-        st.subheader(summonerNameList[2])
-        if st.button('Button  Width'):
-            st.success('Button clicked!')  # Empty space, can be used for better alignment
+            st.write('Last 3 Matches:')
+            for i, game in enumerate(gamesInfo):
+                if st.button(f'{game[1]} || {game[2]}', key=f'{summonerName}Match_{i}', help=game[0]):
+                    plotCorrelationHeatmap(game[0])
 
-    matchIDFromUser = st.text_input("Enter Match ID")
-    if matchIDFromUser:
-        df = createMatchAnalysis(matchIDFromUser)
-        correlationTable, correlationMatrix = plotCorrelationHeatmap(df)
-        st.plotly_chart(correlationTable)
-        col1,colMid,col2 = st.columns([3,0.2,3])
-        st.write('Now you can analyze the correlation matrix of your match by selecting 2 features to scatter plot')
-        with col1:
-            feature_1 = st.selectbox('Select the first feature:', df.columns)
 
-        with colMid:
-            for _ in range(2):
-                st.write("")
-            st.write("VS", style="text-align: center;")
 
-        with col2:
-            feature_2 = st.selectbox('Select the second feature:', df.columns, index=1)
-
-        if feature_1 and feature_2 and feature_1 != feature_2:
-            st.plotly_chart(plotScatter(df, feature_1, feature_2))
-        else:
-            st.error('Please select two different features.')
 
 
 
@@ -77,15 +67,50 @@ if page_selection == "Home":
 elif page_selection == "Matches":
     st.header("Matches")
     st.write("This is the second page.")
+    col1, col2 = st.columns(2)
 
-    # Placeholder for your content
+    with col1:
+        st.write("Content in column 1")
 
+    # Adding a vertical line between columns
+
+    with col2:
+        st.write("Content in column 2")
 
 # Page 3
 
 elif page_selection == "Summoners":
-    st.header("Summoners")
-    st.write("You're on the third page.")
-    # Placeholder for more content
-    st.write("This could be a summary page, or more detailed analysis.")
+    st.write("Enter a match ID in the field below to view the correlation matrix for the selected match.")
+    st.write(
+        "Additionally, you have the option to select a Summoner's Match ID from the dropdown menu provided for each summoner. ")
+    st.write(
+        "There is also a feature that allows you to view the last 3 matches for each summoner by clicking the "
+        "corresponding button.")
+
+    num_summoners = len(summonerNameList)
+    columns = st.columns(num_summoners)
+
+    # Define a placeholder for the heatmap at the desired location (after the columns)
+    heatmap_placeholder = st.empty()
+
+    for index, summonerName in enumerate(summonerNameList):
+        with columns[index]:
+            summonerLast3MatchIDS = getLastNMatchIDSOfSummonerFromDB(summonerName, 3)
+            gamesInfo = [getGameStartTimestampAndSummonerChampionName(matchID, summonerName) for matchID in
+                         summonerLast3MatchIDS]
+
+            st.write('')  # Space
+            st.subheader(summonerName)
+
+            selectBoxLabeledMatches = generateMatchLabels(getLastNMatchIDSOfSummonerFromDB(summonerName, 50),
+                                                          summonerName)
+            selected_match = st.selectbox('Summoner Matches', selectBoxLabeledMatches, key=f'selectbox_{summonerName}')
+
+            st.write('Last 3 Matches:')
+            for i, game in enumerate(gamesInfo):
+                if st.button(f'{game[1]} || {game[2]}', key=f'{summonerName}Match_{i}', help=game[0]):
+                    # Clear the existing content of the placeholder and display the new heatmap in the placeholder.
+                    heatmap_placeholder.empty()  # Clear any previous content
+                    with heatmap_placeholder.container():  # Use the container to add content to the placeholder
+                        plotCorrelationHeatmap(game[0])  # Di
 

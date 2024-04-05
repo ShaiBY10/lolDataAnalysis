@@ -1,3 +1,5 @@
+import requests as re
+
 from utils import countdown, explainStatus, cPrint, cPrintS, getDataFromConfig
 
 selenia = 'Seleniá'
@@ -28,7 +30,7 @@ def request(url, headers=None, params=None):
 
     if headers is None:
         headers = requestHeaders
-    response = request(url, headers=headers, params=params)
+    response = re.get(url, headers=headers, params=params)
 
     if response.status_code == 200:
         return response
@@ -231,3 +233,5 @@ def getMatchData(matchID):
     url = f'https://europe.api.riotgames.com/lol/match/v5/matches/{matchID}'
     response = request(url)
     return response.json()
+
+

@@ -2,11 +2,13 @@ import json
 from datetime import datetime
 
 import pandas as pd
-import psycopg2 as ps
+import psycopg as ps
+import streamlit as st
 from sqlalchemy import create_engine
 
 from data import getLatestVersion, getMatchData
-from utils import cPrint, findMissingMatches, countdown, timestampToDate, getDataFromConfig
+from utils import getDataFromConfig, cPrint, cPrintS, timestampToDate, findMissingMatches, countdown, \
+    getPuuidFromSummonerName
 
 dbname = 'LoL'
 user = 'postgres'
@@ -28,10 +30,10 @@ def connect_db():
 def updateLatestVersion():
     """
     This function retrieves the latest version of the game, gets the current timestamp,
-    and replaces the current version in the database table named 'latest_version' with 
+    and replaces the current version in the database table named 'latest_version' with
     the new version along with its timestamp.
 
-    The function does not keep a record of the old versions. It always contains one row 
+    The function does not keep a record of the old versions. It always contains one row
     with the latest version and timestamp.
 
     It then prints a message containing the latest version and timestamp.
@@ -200,6 +202,8 @@ def getMatchIdsFromDB():
     conn.close()
     return matchesList
 
+
+@st.cache_data
 def getSummonerNameFromDB():
     """
     Fetches all summoner names from the 'summoners' table in the database.
@@ -235,45 +239,50 @@ def upsertListOfMatches(matchesList):
     """
 
     cPrint('Checking what IDS are missing from DB and inserting...', 'yellow')
+    matchIdsFromDB = getMatchIdsFromDB()
     missingMatches = findMissingMatches(getMatchIdsFromDB(), matchesList)
     if len(missingMatches) == 0:
         cPrint('No missing matches found (The DB is updated with latest Summoner Matches!)', 'green')
         cPrint('Exiting...', 'green')
         return None
+    elif len(matchIdsFromDB) == 0:
+        cPrint('Adding all matches from list (DB is empty)', 'yellow')
     else:
         matchesList = missingMatches
-        cPrint('Adding all matches from list (DB is empty)', 'yellow')
-        matchesAdded = 0
-        requestCount = 0
-        for matchid in matchesList:
-            while True:
-                cPrint(f'Match ID:{matchid}', 'cyan')
-                matchData = getMatchData(matchid)
-                requestCount += 1
+    matchesAdded = 0
+    requestCount = 0
+    for matchid in matchesList:
+        while True:
+            cPrint(f'Match ID:{matchid}', 'cyan')
+            matchData = getMatchData(matchid)
+            requestCount += 1
 
-                if matchData == 'limit':
-                    # Hit the rate limit, wait and then continue the loop without moving to the next match
-                    cPrint('Rate limit hit, waiting...', 'red')
-                    countdown(30)
-                    continue  # This will skip the rest of the loop and retry the same matchid
+            if matchData == 'limit':
+                # Hit the rate limit, wait and then continue the loop without moving to the next match
+                cPrint('Rate limit hit, waiting...', 'red')
+                countdown(30)
+                continue  # This will skip the rest of the loop and retry the same matchid
 
-                if type(matchData) is dict:
-                    matchUpserted = upsertMatchData(matchData)
-                    if matchUpserted:
-                        cPrint(f'Added Match ID {matchid}', 'green')
-                        matchesAdded += 1
-                        cPrint(f'Matches Added till now: {matchesAdded}', 'blue')
-                        break  # Successfully processed the match, break the while loop to move to the next match
-                else:
-                    cPrint(f'Match {matchid} Data could not be found, skipping...', 'yellow')
-                    break  # If there's no data, and it's not a rate limit, move to the next match
+            if type(matchData) is dict:
+                matchUpserted = upsertMatchData(matchData)
+                if matchUpserted:
+                    cPrintS(f'{{green}}Added Match ID {{cyan}}{matchid}')
+                    matchesAdded += 1
+                    cPrintS(
+                        f'{{green}}Matches Added till now: {{cyan}}{matchesAdded} {{green}} out of{{cyan}}{len(missingMatches)}{{green}}matches')
+                    break  # Successfully processed the match, break the while loop to move to the next match
+            else:
+                cPrint(f'Match {matchid} Data could not be found, skipping...', 'yellow')
+                break  # If there's no data, and it's not a rate limit, move to the next match
 
-        cPrint(f'Finished! Matches Added: {matchesAdded}', 'green')
+    cPrintS(
+        f'{{green}}Finished! Matches Added: {{cyan}}{matchesAdded}{{green}} out of {{cyan}}{len(missingMatches)}{{green}} matches found')
 
 
 def getSummonerMatchDataFromDB(matchID, summonerIndex):
     """
     Retrieves specific match data for a summoner from a PostgreSQL database.
+    With the data from this function it is poissible to plot the correlation matrix and more analysis
 
     Parameters:
     - matchID: int, the ID of the match to retrieve data for
@@ -313,3 +322,70 @@ WHERE (m.matchdata -> 'info' -> 'gameId') :: bigint = {matchID}
 """
     return pd.read_sql_query(query, engine)
 
+
+def getMatchDataFromDB(matchID):
+    engine = create_engine(getDataFromConfig(key='Database')['ConnectionString'])
+    query = f"""
+    select matchdata from matches
+    where matchid = '{matchID}'
+    """
+    queryResponse = pd.read_sql_query(query, engine)
+    return queryResponse['matchdata'][0]
+
+
+def getMatchKnownParticipantsIndex(matchID):
+    configPuuids = getDataFromConfig(key='puuids')
+    summonersFound = 0
+
+    df = getMatchDataFromDB(matchID)
+    participantsIndexes = {}
+    for i, participant in enumerate(df['metadata']['participants']):
+        if participant in configPuuids:
+            summonersFound += 1
+            participantsIndexes[participant] = i
+            cPrintS(
+                f'{{green}}Found Summoner puuid: {{cyan}}{participant} {{green}}at index{{cyan}} {i} {{green}}and added to result dict')
+    cPrintS(f'{{green}}Found total of {{cyan}}{summonersFound}{{green}} summoners in match {{cyan}}{matchID}')
+    return participantsIndexes
+
+
+@st.cache_resource
+def getLastNMatchIDSOfSummonerFromDB(summonerName, n=3):
+    """
+    A function to retrieve the last N match IDs of a summoner from the database.
+
+    Parameters:
+    - summonerName: str, the name of the summoner
+    - limit: int, optional, the number of match IDs to retrieve (default is 3)
+
+    Returns:
+    - list of str: a list of the last N match IDs of the summoner
+    """
+
+    summonerPuuid = getPuuidFromSummonerName(summonerName)
+
+    engine = create_engine(getDataFromConfig(key='Database')['ConnectionString'])
+    query = f"""
+   SELECT m.matchID
+    FROM matches m
+    WHERE m.matchdata -> 'metadata' -> 'participants' @> '["{summonerPuuid}"]'::jsonb
+    ORDER BY datetime desc
+    limit {n};
+
+     """
+    queryResponse = pd.read_sql_query(query, engine)
+    return queryResponse.iloc[:, 0].tolist()
+
+
+@st.cache_data
+def getGameStartTimestampAndSummonerChampionName(matchID, summonerName):
+    summonerPuuid = getPuuidFromSummonerName(summonerName)
+    knownMatchParticipants = getMatchKnownParticipantsIndex(matchID)
+    summonerIndex = knownMatchParticipants[summonerPuuid]
+    df = getMatchDataFromDB(matchID)
+    matchID = df['metadata']['matchId']
+    matchStartTimestampStr = timestampToDate(df['info']['gameStartTimestamp'], convert=True)
+    matchStartTimestamp = datetime.strptime(matchStartTimestampStr, '%Y-%m-%d %H:%M:%S')
+    matchStartDate = matchStartTimestamp.strftime('%d/%m/%y %H:%H')
+    summonerChampionPlayed = df['info']['participants'][summonerIndex]['championName']
+    return matchID, matchStartDate, summonerChampionPlayed

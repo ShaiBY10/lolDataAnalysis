@@ -3,6 +3,8 @@ import sys
 import time
 from datetime import datetime
 
+import pytz
+
 selenia = 'Seleniá'
 
 
@@ -84,6 +86,11 @@ def getDataFromConfig(file='config.json', key=None):
     :return: The value corresponding to the provided key in the configuration file
     :rtype: any
     """
+    if not key:
+        with open(file, 'r') as f:
+            config = json.load(f)
+        return config
+
 
     with open(file, 'r') as f:
         config = json.load(f)
@@ -208,23 +215,37 @@ def explainStatus(status_code):
     return status_explanations.get(status_code, "Unknown HTTP Status Code")
 
 
-def timestampToDate(mili_timestamp, timezone='UTC'):
+def timestampToDate(mili_timestamp, timezone='UTC', convert=False):
     """
-    Convert a Unix timestamp in milliseconds to a readable date in UTC timezone.
+    Convert a Unix timestamp in milliseconds to a readable date. If 'convert' is True,
+    the date is initially in UTC timezone and then converted to the 'Israel' timezone.
+    Otherwise, the date remains in UTC.
 
     Parameters:
-    - timestamp_millis: Unix timestamp in milliseconds (int or float)
+    - mili_timestamp: Unix timestamp in milliseconds (int or float)
+    - convert (bool): Whether to convert the datetime to the 'Israel' timezone (default is False)
 
     Returns:
-    - A string representing the date and time in the format 'YYYY-MM-DD HH:MM:SS'
+    - A string representing the date and time, in the format 'YYYY-MM-DD HH:MM:SS'. The timezone
+      will be 'Israel' if 'convert' is True, otherwise UTC.
     """
     # Convert the timestamp from milliseconds to seconds
     timestamp_seconds = mili_timestamp / 1000
 
-    # Convert the timestamp to a datetime object
-    dt_object = datetime.utcfromtimestamp(timestamp_seconds)
+    # Convert the timestamp to a UTC datetime object
+    utc_dt_object = datetime.utcfromtimestamp(timestamp_seconds).replace(tzinfo=pytz.utc)
 
-    # Return the datetime object in the specified format
+    if convert:
+        # Define the target timezone: 'Israel'
+        target_timezone = pytz.timezone('Asia/Jerusalem')
+
+        # Convert the UTC datetime object to the target timezone ('Israel')
+        dt_object = utc_dt_object.astimezone(target_timezone)
+    else:
+        # Keep the datetime object in UTC
+        dt_object = utc_dt_object
+
+    # Return the datetime object, formatted as a string
     return dt_object.strftime('%Y-%m-%d %H:%M:%S')
 
 
@@ -242,7 +263,36 @@ def findMissingMatches(DB_list, NewList):
     if len(DB_list) > 0:
         # Use set difference to find items in new_list not in table_list
         missing_matches = list(set(NewList) - set(DB_list))
-        print(f'Missing Matches:{missing_matches}, \n length of missingMatchesList is {len(missing_matches)}')
+        cPrintS(f'{{blue}}Missing Matches:{{cyan}}{missing_matches}, \n{{blue}}length of missingMatchesList is {{cyan}}{len(missing_matches)}')
         return missing_matches
     elif len(DB_list) == 0:
         cPrint('DB is empty, skipping findMissingMatches Function', 'yellow')
+
+def getPuuidFromSummonerName(summonerName):
+    """
+    Returns the PUUID for a given summoner name based on the provided configuration.
+
+    Parameters:
+    summoner_name (str): The name of the summoner.
+
+    Returns:
+    str: The PUUID of the summoner, or None if not found.
+    """
+    # Access the 'SummonerData' from the config
+    config = getDataFromConfig()
+    summoner_data = config.get('SummonerData', {})
+
+    # Attempt to get the summoner details by name, return the PUUID if found
+    summoner_details = summoner_data.get(summonerName)
+    if summoner_details:
+        return summoner_details.get('puuid')
+
+    # Return None if the summoner name is not found
+    return None
+
+
+
+
+
+
+

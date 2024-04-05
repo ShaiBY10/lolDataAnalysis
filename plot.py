@@ -1,8 +1,11 @@
 import plotly.express as px
 import plotly.figure_factory as ff
+import streamlit as st
+
+from analysis import createMatchAnalysis
 
 
-def plotCorrelationHeatmap(df):
+def createCorrelationHeatmap(df):
 
     """
     Generate a correlation heatmap plot using Plotly based on the input DataFrame.
@@ -50,6 +53,10 @@ def plotCorrelationHeatmap(df):
 
     return fig, correlation_matrix
 
+def plotCorrelationHeatmap(matchID):
+    df = createMatchAnalysis(matchID)
+    correlationTable, correlationMatrix = createCorrelationHeatmap(df)
+    st.plotly_chart(correlationTable)
 
 def plotScatter(df, x_col, y_col):
     fig = px.scatter(df, x=x_col, y=y_col, title=f'Scatter Plot of {x_col} vs. {y_col}')
