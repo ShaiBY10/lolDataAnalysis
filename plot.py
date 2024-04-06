@@ -5,8 +5,8 @@ import streamlit as st
 from analysis import createMatchAnalysis
 
 
-def createCorrelationHeatmap(df):
-
+@st.cache_data
+def createCorrelationHeatmap(df, title='Correlation Heatmap'):
     """
     Generate a correlation heatmap plot using Plotly based on the input DataFrame.
 
@@ -17,7 +17,6 @@ def createCorrelationHeatmap(df):
     fig (plotly.graph_objs.Figure): The correlation heatmap plot generated using Plotly.
     correlation_matrix (DataFrame): The correlation matrix calculated from the input DataFrame.
     """
-
 
     df_numeric = df.select_dtypes(include=[int, float])  # Select numeric columns
 
@@ -34,8 +33,9 @@ def createCorrelationHeatmap(df):
     )
 
     fig.update_layout(
-        title_text='Correlation Heatmap',
-        title_x=0.5,
+        title_text=f'{title}',
+        title_x=0.35,
+        title_y=1,
         xaxis_tickmode='linear',
         yaxis_tickmode='linear',
         width=1000,
@@ -53,10 +53,13 @@ def createCorrelationHeatmap(df):
 
     return fig, correlation_matrix
 
-def plotCorrelationHeatmap(matchID):
+
+@st.cache_data
+def plotCorrelationHeatmap(matchID,title=None):
     df = createMatchAnalysis(matchID)
-    correlationTable, correlationMatrix = createCorrelationHeatmap(df)
+    correlationTable, correlationMatrix = createCorrelationHeatmap(df, title)
     st.plotly_chart(correlationTable)
+
 
 def plotScatter(df, x_col, y_col):
     fig = px.scatter(df, x=x_col, y=y_col, title=f'Scatter Plot of {x_col} vs. {y_col}')

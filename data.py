@@ -1,6 +1,6 @@
 import requests as re
 
-from utils import countdown, explainStatus, cPrint, cPrintS, getDataFromConfig
+from utils import countdown, explainStatus, cPrint, cPrintS, getDataFromConfig, myLogger
 
 selenia = 'Seleniá'
 API_KEY = getDataFromConfig(key='API')['KEY']
@@ -15,6 +15,7 @@ requestHeaders = {
 }
 
 
+@myLogger
 def request(url, headers=None, params=None):
     """
     A function to make a request to a URL with optional headers and parameters.
@@ -27,6 +28,7 @@ def request(url, headers=None, params=None):
     Returns:
     The response object if the status code is 200, the status code if 429 or 404, and the status code with explanation for all other cases.
     """
+    cPrintS(f'{{magenta}} ')
 
     if headers is None:
         headers = requestHeaders
@@ -48,6 +50,7 @@ def request(url, headers=None, params=None):
         return response.status_code
 
 
+@myLogger
 def getLatestVersion():
     """
     This function fetches the latest version of league of legends game
@@ -66,6 +69,7 @@ def getLatestVersion():
     return versions[0]
 
 
+@myLogger
 def getLatestChampions(version, language='en_US'):
     """
     getLatestChampions is a function that fetches the latest champions from the API using the given version and
@@ -92,6 +96,7 @@ def getLatestChampions(version, language='en_US'):
     return champions
 
 
+@myLogger
 def getChampionRotations():
     """
     getChampionRotations is a function that fetches the currently free-to-play champion rotations from the Riot Games
@@ -122,6 +127,7 @@ def getChampionRotations():
     return freeChampions
 
 
+@myLogger
 def getSummonerData(summonerName):
     """
     Retrieves summoner data from the Riot Games API for a specified summoner name in the EUW (Europe West) region.
@@ -152,6 +158,7 @@ def getSummonerData(summonerName):
     return summonerData
 
 
+@myLogger
 def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
     """
     Retrieves matches for a summoner identified by their PUUID.
@@ -170,7 +177,7 @@ def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
     url = f"https://{region}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids"
 
     matches = []  # List to store the match data
-
+    cPrintS(f'')
     while True:
         params = {"start": start, "count": count}
         response = request(url, params=params)  # Make a request to the API
@@ -197,6 +204,7 @@ def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
     return matches
 
 
+@myLogger
 def get100LatestSummonerMatches(puuid, region='europe'):
     """
     Retrieves the latest matches for a given summoner based on their unique identifier (puuid) and region.
@@ -220,6 +228,7 @@ def get100LatestSummonerMatches(puuid, region='europe'):
     return response.json()
 
 
+@myLogger
 def getMatchData(matchID):
     """
     Retrieve match data from the Riot Games API using the provided match ID.

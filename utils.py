@@ -2,12 +2,30 @@ import json
 import sys
 import time
 from datetime import datetime
+from functools import wraps
 
 import pytz
 
 selenia = 'Seleniá'
 
 
+def myLogger(func):
+    """Decorator to log function name on execution"""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        now = datetime.now()
+        localTimezone = now.astimezone()
+        formattedDatetime = localTimezone.strftime("%Y-%m-%d %H:%M:%S")
+
+        # logging.info(f"Executing function: {func.__name__}")
+        cPrintS(f"{{yellow}}{formattedDatetime} || {{magenta}}Executing function: {{cyan}}{func.__name__}")
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@myLogger
 def cPrint(text, color_name):
     """
     Prints the given text in the terminal with the specified color.
@@ -75,6 +93,7 @@ def cPrintS(text):
     print(final_text)
 
 
+@myLogger
 def getDataFromConfig(file='config.json', key=None):
     """
     Retrieve data from the specified configuration file based on the provided key.
@@ -90,7 +109,6 @@ def getDataFromConfig(file='config.json', key=None):
         with open(file, 'r') as f:
             config = json.load(f)
         return config
-
 
     with open(file, 'r') as f:
         config = json.load(f)
@@ -130,6 +148,7 @@ def coloredBar(percentage):
     return bar
 
 
+@myLogger
 def countdown(secs):
     """
     A function that performs a countdown for the given number of seconds.
@@ -154,6 +173,7 @@ def countdown(secs):
     cPrint("\n<<< Im up, Let's keep going >>>", 'green')
 
 
+@myLogger
 def saveOutput(data, fileName='output.json'):
     """
     This function saves the given data to a file in JSON format.
@@ -170,8 +190,8 @@ def saveOutput(data, fileName='output.json'):
         json.dump(data, file)
 
 
+@myLogger
 def saveDataFrameToCSV(df, fileName='df.csv'):
-
     """
     Save the given DataFrame to a CSV file.
 
@@ -186,6 +206,7 @@ def saveDataFrameToCSV(df, fileName='df.csv'):
     df.to_csv(fileName, index=False)
 
 
+@myLogger
 def explainStatus(status_code):
     """
     Return an explanation for a given HTTP status code.
@@ -215,6 +236,7 @@ def explainStatus(status_code):
     return status_explanations.get(status_code, "Unknown HTTP Status Code")
 
 
+@myLogger
 def timestampToDate(mili_timestamp, timezone='UTC', convert=False):
     """
     Convert a Unix timestamp in milliseconds to a readable date. If 'convert' is True,
@@ -249,8 +271,8 @@ def timestampToDate(mili_timestamp, timezone='UTC', convert=False):
     return dt_object.strftime('%Y-%m-%d %H:%M:%S')
 
 
+@myLogger
 def findMissingMatches(DB_list, NewList):
-
     """
     A function to find missing matches between two lists.
     Parameters:
@@ -263,11 +285,14 @@ def findMissingMatches(DB_list, NewList):
     if len(DB_list) > 0:
         # Use set difference to find items in new_list not in table_list
         missing_matches = list(set(NewList) - set(DB_list))
-        cPrintS(f'{{blue}}Missing Matches:{{cyan}}{missing_matches}, \n{{blue}}length of missingMatchesList is {{cyan}}{len(missing_matches)}')
+        cPrintS(
+            f'{{blue}}Missing Matches:{{cyan}}{missing_matches}, \n{{blue}}length of missingMatchesList is {{cyan}}{len(missing_matches)}')
         return missing_matches
     elif len(DB_list) == 0:
         cPrint('DB is empty, skipping findMissingMatches Function', 'yellow')
 
+
+@myLogger
 def getPuuidFromSummonerName(summonerName):
     """
     Returns the PUUID for a given summoner name based on the provided configuration.
@@ -289,10 +314,3 @@ def getPuuidFromSummonerName(summonerName):
 
     # Return None if the summoner name is not found
     return None
-
-
-
-
-
-
-

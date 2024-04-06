@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 
 from data import getLatestVersion, getMatchData
 from utils import getDataFromConfig, cPrint, cPrintS, timestampToDate, findMissingMatches, countdown, \
-    getPuuidFromSummonerName
+    getPuuidFromSummonerName, myLogger
 
 dbname = 'LoL'
 user = 'postgres'
@@ -17,6 +17,7 @@ host = 'localhost'
 port = '636'
 
 
+@myLogger
 def connect_db():
     return ps.connect(
         dbname=dbname,
@@ -26,7 +27,7 @@ def connect_db():
         port=port
     )
 
-
+@myLogger
 def updateLatestVersion():
     """
     This function retrieves the latest version of the game, gets the current timestamp,
@@ -54,7 +55,7 @@ def updateLatestVersion():
 
     cPrint(f"Latest version {latest_version} saved on {timestamp}", 'cyan')
 
-
+@myLogger
 def updateLatestChampions(champions_dict):
     # SQL to upsert champion data
     upsert_sql = """
@@ -82,7 +83,7 @@ def updateLatestChampions(champions_dict):
         if conn is not None:
             conn.close()
 
-
+@myLogger
 def upsertFreeRotation(free_champions):
     # free_champions is a list of champion IDs for the current week
 
@@ -108,7 +109,7 @@ def upsertFreeRotation(free_champions):
         if conn is not None:
             conn.close()
 
-
+@myLogger
 def upsertSummonerData(summonerData):
     sql = """
     INSERT INTO summoners (puuid, id, accountId, name, profileIconId, revisionDate, summonerLevel) 
@@ -145,7 +146,7 @@ def upsertSummonerData(summonerData):
         if conn is not None:
             conn.close()
 
-
+@myLogger
 def upsertMatchData(matchData):
     sql = """
     INSERT INTO matches (matchid, datetime, matchdata) 
@@ -179,7 +180,7 @@ def upsertMatchData(matchData):
         if conn is not None:
             conn.close()
 
-
+@myLogger
 def getMatchIdsFromDB():
     """
     Fetches all match IDs from the 'matches' table in the database.
@@ -202,7 +203,7 @@ def getMatchIdsFromDB():
     conn.close()
     return matchesList
 
-
+@myLogger
 @st.cache_data
 def getSummonerNameFromDB():
     """
@@ -226,7 +227,7 @@ def getSummonerNameFromDB():
     conn.close()
     return summonerList
 
-
+@myLogger
 def upsertListOfMatches(matchesList):
     """
     A function that checks for missing IDs in the DB, retrieves their data, and upserts it.
@@ -278,7 +279,7 @@ def upsertListOfMatches(matchesList):
     cPrintS(
         f'{{green}}Finished! Matches Added: {{cyan}}{matchesAdded}{{green}} out of {{cyan}}{len(missingMatches)}{{green}} matches found')
 
-
+@myLogger
 def getSummonerMatchDataFromDB(matchID, summonerIndex):
     """
     Retrieves specific match data for a summoner from a PostgreSQL database.
@@ -322,7 +323,7 @@ WHERE (m.matchdata -> 'info' -> 'gameId') :: bigint = {matchID}
 """
     return pd.read_sql_query(query, engine)
 
-
+@myLogger
 def getMatchDataFromDB(matchID):
     engine = create_engine(getDataFromConfig(key='Database')['ConnectionString'])
     query = f"""
@@ -332,7 +333,7 @@ def getMatchDataFromDB(matchID):
     queryResponse = pd.read_sql_query(query, engine)
     return queryResponse['matchdata'][0]
 
-
+@myLogger
 def getMatchKnownParticipantsIndex(matchID):
     configPuuids = getDataFromConfig(key='puuids')
     summonersFound = 0
@@ -350,6 +351,7 @@ def getMatchKnownParticipantsIndex(matchID):
 
 
 @st.cache_resource
+@myLogger
 def getLastNMatchIDSOfSummonerFromDB(summonerName, n=3):
     """
     A function to retrieve the last N match IDs of a summoner from the database.
@@ -378,6 +380,7 @@ def getLastNMatchIDSOfSummonerFromDB(summonerName, n=3):
 
 
 @st.cache_data
+@myLogger
 def getGameStartTimestampAndSummonerChampionName(matchID, summonerName):
     summonerPuuid = getPuuidFromSummonerName(summonerName)
     knownMatchParticipants = getMatchKnownParticipantsIndex(matchID)
