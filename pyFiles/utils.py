@@ -94,7 +94,7 @@ def cPrintS(text):
 
 
 @myLogger
-def getDataFromConfig(file='config.json', key=None):
+def getDataFromConfig(file='../config/config.json', key=None):
     """
     Retrieve data from the specified configuration file based on the provided key.
 
@@ -293,7 +293,7 @@ def findMissingMatches(DB_list, NewList):
 
 
 @myLogger
-def getPuuidFromSummonerName(summonerName):
+def getDetailsFromSummonerName(summonerName,detail='puuid'):
     """
     Returns the PUUID for a given summoner name based on the provided configuration.
 
@@ -310,7 +310,21 @@ def getPuuidFromSummonerName(summonerName):
     # Attempt to get the summoner details by name, return the PUUID if found
     summoner_details = summoner_data.get(summonerName)
     if summoner_details:
-        return summoner_details.get('puuid')
+        return summoner_details.get(detail)
 
     # Return None if the summoner name is not found
     return None
+
+@myLogger
+def getSummonerNameFromID(summonerID):
+
+    # Access the 'SummonerData' from the config
+    config = getDataFromConfig()
+    for summoner,data in config['SummonerData'].items():
+        if data['summonerID'] == summonerID:
+            return data['summonerName']
+
+    # Return None if the summoner name is not found
+    return None
+
+

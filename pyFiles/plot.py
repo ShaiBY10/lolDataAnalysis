@@ -27,7 +27,6 @@ def createCorrelationHeatmap(df, title='Correlation Heatmap'):
         z=correlation_matrix.values.tolist(),  # Convert to list for Plotly
         x=correlation_matrix.columns.tolist(),
         y=correlation_matrix.columns.tolist(),
-        colorscale='RdBu_r',
         annotation_text=correlation_matrix.round(2).astype(str).values.tolist(),
         showscale=True
     )
@@ -39,7 +38,7 @@ def createCorrelationHeatmap(df, title='Correlation Heatmap'):
         xaxis_tickmode='linear',
         yaxis_tickmode='linear',
         width=1000,
-        height=800,
+        height=700,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(size=12)  # Set font size for all text elements
@@ -58,7 +57,8 @@ def createCorrelationHeatmap(df, title='Correlation Heatmap'):
 def plotCorrelationHeatmap(matchID,title=None):
     df = createMatchAnalysis(matchID)
     correlationTable, correlationMatrix = createCorrelationHeatmap(df, title)
-    st.plotly_chart(correlationTable)
+    st.plotly_chart(correlationTable,)
+    return df
 
 
 def plotScatter(df, x_col, y_col):

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from sql import getSummonerMatchDataFromDB
+from data import getSummonerMatchDataFromDB
 
 
 def createMatchAnalysis(matchID):
