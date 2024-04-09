@@ -1,0 +1,36 @@
+{
+    "API": {
+        "requestHeaders" : {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.7",
+            "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": "https://developer.riotgames.com",
+            "X-Riot-Token": ""
+}
+    },
+    "SummonerData": {
+        "ShaiBY": {
+            "summonerName" : "ShaiBY",
+            "puuid": "vlB5q4XsK5ycbtkQ03pr5PnKTKdgaRZHNKP4pMp7RNbL1F2kTwqTUWu3lwSy8bv8LpTvlvf39FLt4w",
+            "summonerID" : "4CyVUWKNdmAY4GkidYTA_tb4YFZ0X6-bs394SprNzKjEIbEYdFtl2gsxaw"
+        },
+        "Xavron": {
+            "summonerName" : "Xavron",
+            "puuid": "geh2sWmDB6R97m9zmYxSkh4n7tQRps3fReffco8zHwmD2zKtpADQHK1GTqaAlX593FZtGAkf-HsWrA",
+            "summonerID" : "wzQNwCfW8Dcdf-kNmPY4DVwIUfaLEtHO_pjsorbaR9C9Si8"
+        },
+        "GuySun": {
+            "summonerName": "GuySun",
+            "puuid": "K_npQ3AKaIn0ZzZ7Dro-9tQBwIcatGCM0zWQd8MPEVdXo_XDTPw9_jfb-pZlCZVRaI7AZuTzI9wErw",
+            "summonerID" : "cK-eNmGOC-DmOR7jGRH0z36U7EyuOdCG8uyTpbXQY0mS2rc"
+        }
+    },
+    "Database": {
+        "ConnectionString": "postgresql+psycopg2://postgres:1210@192.168.50.209:636/LoL"
+    },
+    "puuids": [
+        "vlB5q4XsK5ycbtkQ03pr5PnKTKdgaRZHNKP4pMp7RNbL1F2kTwqTUWu3lwSy8bv8LpTvlvf39FLt4w",
+        "geh2sWmDB6R97m9zmYxSkh4n7tQRps3fReffco8zHwmD2zKtpADQHK1GTqaAlX593FZtGAkf-HsWrA",
+        "K_npQ3AKaIn0ZzZ7Dro-9tQBwIcatGCM0zWQd8MPEVdXo_XDTPw9_jfb-pZlCZVRaI7AZuTzI9wErw"
+    ]
+}
