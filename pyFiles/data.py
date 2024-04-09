@@ -763,6 +763,7 @@ def getSummonerRankedSoloData(summonerID):
     network errors or invalid API keys is not implemented in this basic example.
     """
 
+    rankedSoloData = {}
     # Construct the URL for fetching ranked stats
     rankedStatsURL = f"https://euw1.api.riotgames.com/lol/league/v4/entries/by-summoner/{summonerID}"
 
