@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import psycopg2 as ps
+import psycopg2.extras
 import requests as re
 import streamlit as st
 from sqlalchemy import create_engine
@@ -596,7 +597,7 @@ def upsertListOfMatches(matchesList):
                     upsertErrorToDB(matchid, matchData)
                     break  # If there's no data, and it's not a rate limit, move to the next match
         except Exception as e:
-            errorCode = getattr(e,'obj',None)
+            errorCode = getattr(e, 'obj', None)
             if errorCode is not None:
                 cPrintS(
                     f"{{yellow}}Error processing match {{cyan}} {matchid}, {{red}}Request couldn't find the Match Data\n"
@@ -743,13 +744,42 @@ WHERE (m.matchdata -> 'info' -> 'gameId') :: bigint = {matchID}
 
 @myLogger
 def getMatchDataFromDB(matchID):
-    engine = create_engine(getDataFromConfig(key='Database')['ConnectionString'])
-    query = f"""
-    select matchdata from matches
-    where matchid = '{matchID}'
-    """
-    queryResponse = pd.read_sql_query(query, engine)
-    return queryResponse['matchdata'][0]
+    # Connect to the database using your connect_db function
+    conn = connect_db()
+
+    # Cursor with dictionary fetch mode
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Execute the query
+    cursor.execute("""
+    SELECT * FROM matches WHERE matchid = %s
+    """, (matchID,))
+
+    # Fetch one result
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if result:
+        # Constructing the matchData dictionary from the result
+        matchData = {
+            "matchid": result['matchid'],
+            "datetime": result['datetime'].strftime('%Y-%m-%d %H:%M:%S'),
+            "matchmetadata": result['matchmetadata'],
+            "matchinfo": result['matchinfo'],
+            "participants": []
+        }
+
+        # Dynamically adding participant data to the matchData dictionary
+        for i in range(10):
+            participant_key = f"matchparticipant{i}"
+            if result[participant_key]:
+                matchData["participants"].append(result[participant_key])
+
+        return matchData
+    else:
+        # Return None if no match found
+        return None
 
 
 @myLogger
@@ -759,12 +789,13 @@ def getMatchKnownParticipantsIndex(matchID):
 
     df = getMatchDataFromDB(matchID)
     participantsIndexes = {}
-    for i, participant in enumerate(df['metadata']['participants']):
+    for i, participant in enumerate(df['matchmetadata']['participants']):
         if participant in configPuuids:
             summonersFound += 1
             participantsIndexes[participant] = i
             cPrintS(
-                f'{{green}}Found Summoner puuid: {{cyan}}{participant} {{green}}at index{{cyan}} {i} {{green}}and added to result dict')
+                f'{{green}}Found Summoner puuid: {{cyan}}{participant} {{green}}at index{{cyan}} {i} {{green}}and '
+                f'added to result dict')
     cPrintS(f'{{green}}Found total of {{cyan}}{summonersFound}{{green}} summoners in match {{cyan}}{matchID}')
     return participantsIndexes
 
@@ -805,11 +836,11 @@ def getGameStartTimestampAndSummonerChampionName(matchID, summonerName):
     knownMatchParticipants = getMatchKnownParticipantsIndex(matchID)
     summonerIndex = knownMatchParticipants[summonerPuuid]
     df = getMatchDataFromDB(matchID)
-    matchID = df['metadata']['matchId']
-    matchStartTimestampStr = timestampToDate(df['info']['gameStartTimestamp'], convert=True)
+    matchID = df['matchmetadata']['matchId']
+    matchStartTimestampStr = timestampToDate(df['matchinfo']['gameStartTimestamp'], convert=True)
     matchStartTimestamp = datetime.strptime(matchStartTimestampStr, '%Y-%m-%d %H:%M:%S')
     matchStartDate = matchStartTimestamp.strftime('%d/%m/%y %H:%H')
-    summonerChampionPlayed = df['info']['participants'][summonerIndex]['championName']
+    summonerChampionPlayed = df['participants'][summonerIndex]['championName']
     return matchID, matchStartDate, summonerChampionPlayed
 
 
@@ -1073,8 +1104,8 @@ def getPreviousMonthMatchIDSFromDB(summonerName):
     FROM matches
     WHERE datetime >= date_trunc('month', CURRENT_DATE - INTERVAL '1 MONTH')
   AND datetime < date_trunc('month', CURRENT_DATE)
-  AND (matchdata -> 'info' -> 'queueId')::int = 420
-  AND jsonb_path_exists(matchdata, '$.metadata.participants ? (@ == "{summonerPuuid}")');
+  AND (matchinfo -> 'queueId')::int = 420
+  AND jsonb_path_exists(matchmetadata, '$.participants ? (@ == "{summonerPuuid}")');
     """
 
     conn = connect_db()
@@ -1099,7 +1130,7 @@ def getSummonerWinLossRatioFromDB(summonerName, matchesList):
         matchData = getMatchDataFromDB(match)
         knownMatchParticipants = getMatchKnownParticipantsIndex(match)
         summonerIndex = knownMatchParticipants[getDetailsFromSummonerName(summonerName)]
-        if matchData['info']['participants'][summonerIndex]['win']:
+        if matchData['participants'][summonerIndex]['win']:
             wins += 1
         else:
             losses += 1
@@ -1114,7 +1145,7 @@ def getSummonerHoursAndGamesFromDB(summonerName, matchesList):
     hoursPlayedInSeconds = 0
     for match in matchesList:
         matchData = getMatchDataFromDB(match)
-        matchDuration = matchData['info']['gameDuration']
+        matchDuration = matchData['matchinfo']['gameDuration']
         hoursPlayedInSeconds += matchDuration
     hoursPlayed = int(hoursPlayedInSeconds / 3600)
     minutesPlayed = ((hoursPlayedInSeconds / 3600) - hoursPlayed) * 60
@@ -1131,7 +1162,7 @@ def getChampionPoolDiversityAndFavoriteChampionFromDB(summonerName, matchesList)
         matchData = getMatchDataFromDB(match)
         knownMatchParticipants = getMatchKnownParticipantsIndex(match)
         summonerIndex = knownMatchParticipants[getDetailsFromSummonerName(summonerName)]
-        championName = matchData['info']['participants'][summonerIndex]['championName']
+        championName = matchData['participants'][summonerIndex]['championName']
         if championName in championPool:
             championPool[championName] += 1
         else:
@@ -1160,10 +1191,10 @@ def getBestGameFromDB(summonerName, matchesList):
         matchData = getMatchDataFromDB(match)
         knownMatchParticipants = getMatchKnownParticipantsIndex(match)
         summonerIndex = knownMatchParticipants[getDetailsFromSummonerName(summonerName)]
-        assists = matchData['info']['participants'][summonerIndex]['assists']
-        kills = matchData['info']['participants'][summonerIndex]['kills']
-        deaths = matchData['info']['participants'][summonerIndex]['deaths']
-        champion = matchData['info']['participants'][summonerIndex]['championName']
+        assists = matchData['participants'][summonerIndex]['assists']
+        kills = matchData['participants'][summonerIndex]['kills']
+        deaths = matchData['participants'][summonerIndex]['deaths']
+        champion = matchData['participants'][summonerIndex]['championName']
         if deaths == 0:
             kda = assists + kills
         else:
@@ -1172,5 +1203,3 @@ def getBestGameFromDB(summonerName, matchesList):
             bestGameKDA = kda
             bestGame = match
         return bestGame, champion, kills, deaths, assists
-
-
