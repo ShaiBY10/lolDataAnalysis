@@ -1,3 +1,4 @@
+from utils import *
 # version = getLatestVersion()  # get the latest game version to a variable
 #
 # champions = getLatestChampions(version)  # get the latest champions to list
@@ -15,5 +16,5 @@
 # upsertListOfMatches(get100LatestSummonerMatches(getDataFromConfig(key='SummonerData')['Xavron']['puuid']))
 #
 #
-print('Just runned main.py file!')
+cPrintS('{green}Just runned main.py file!')
 
