@@ -95,7 +95,7 @@ def displayHome():
     userSummonerName = st.text_input("Enter Your Summoner Name:")
     if userSummonerName:
         if userSummonerName.lower() in summonerNames:
-            summonerMatches = getPreviousMonthMatchIDSFromDB(userSummonerName)
+            summonerMatches = getThisWeekMatchIDSFromDB(userSummonerName)
             victories, defeats = getSummonerWinLossRatioFromDB(userSummonerName, matchesList=summonerMatches)
             hoursPlayed, minutesPlayed, weeklyGames = getSummonerHoursAndGamesFromDB(userSummonerName,
                                                                                      matchesList=summonerMatches)

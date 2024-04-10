@@ -290,7 +290,7 @@ def findMissingMatches(DB_list, NewList):
         return missing_matches
     elif len(DB_list) == 0:
         cPrint('DB is empty, skipping findMissingMatches Function', 'yellow')
-
+        return NewList
 
 @myLogger
 def getDetailsFromSummonerName(summonerName,detail='puuid'):

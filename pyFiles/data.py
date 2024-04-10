@@ -318,39 +318,93 @@ def getMatchData(matchID):
     """
     url = f'https://europe.api.riotgames.com/lol/match/v5/matches/{matchID}'
     response = request(url, headers=requestHeaders)
-    return response.json()
+    return response.json() if response.status_code == 200 else response.status_code
 
 
 @myLogger
 def upsertMatchData(matchData):
+    """
+    This function inserts or updates (upserts) match data into the 'matches' table in the database.
+
+    The function takes a dictionary containing match data as input. It extracts the relevant data from the dictionary,
+    including match metadata, match info, and participant data. It then executes an SQL query to insert the data into
+    the database. If a match with the same ID already exists in the database, the function updates the existing record
+    with the new data.
+
+    Parameters:
+        matchData (dict): A dictionary containing match data.
+
+    Returns:
+        bool: True if the operation was successful, False otherwise.
+
+    Raises:
+        Exception: If there is an error executing the SQL query.
+        psycopg2.DatabaseError: If there is an error connecting to the database or executing the SQL query.
+    """
+
     sql = """
-    INSERT INTO matches (matchid, datetime, matchdata) 
-    VALUES (%s, %s, %s) 
+    INSERT INTO matches (
+        matchid, datetime, matchmetadata, matchinfo, 
+        matchparticipant0, matchparticipant1, matchparticipant2, matchparticipant3, matchparticipant4, 
+        matchparticipant5, matchparticipant6, matchparticipant7, matchparticipant8, matchparticipant9
+    ) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
     ON CONFLICT (matchid) 
     DO UPDATE SET 
         matchid = EXCLUDED.matchid, 
         datetime = EXCLUDED.datetime, 
-        matchdata = EXCLUDED.matchdata
+        matchmetadata = EXCLUDED.matchmetadata, 
+        matchinfo = EXCLUDED.matchinfo, 
+        matchparticipant0 = EXCLUDED.matchparticipant0, 
+        matchparticipant1 = EXCLUDED.matchparticipant1, 
+        matchparticipant2 = EXCLUDED.matchparticipant2, 
+        matchparticipant3 = EXCLUDED.matchparticipant3, 
+        matchparticipant4 = EXCLUDED.matchparticipant4, 
+        matchparticipant5 = EXCLUDED.matchparticipant5, 
+        matchparticipant6 = EXCLUDED.matchparticipant6, 
+        matchparticipant7 = EXCLUDED.matchparticipant7, 
+        matchparticipant8 = EXCLUDED.matchparticipant8, 
+        matchparticipant9 = EXCLUDED.matchparticipant9
     """
     conn = None
     try:
         conn = connect_db()  # Assuming you have a predefined function for database connection
         cur = conn.cursor()
-        # Convert the matchData dictionary to a JSON string
-        matchDataJson = json.dumps(matchData)
+
+        # Extract the relevant data from the matchData dictionary
+        matchid = matchData['metadata']['matchId']
+        matchDateTime = timestampToDate(matchData['info']['gameStartTimestamp'])
+        matchMetadata = json.dumps(matchData['metadata'])
+        matchInfo = matchData['info'].copy()
+        if 'participants' in matchInfo:
+            del matchInfo['participants']
+        matchInfo = json.dumps(matchInfo)
+
+        # Extract the participant data
+        participants = matchData['info']['participants']
+        participant0 = json.dumps(participants[0]) if len(participants) > 0 else None
+        participant1 = json.dumps(participants[1]) if len(participants) > 1 else None
+        participant2 = json.dumps(participants[2]) if len(participants) > 2 else None
+        participant3 = json.dumps(participants[3]) if len(participants) > 3 else None
+        participant4 = json.dumps(participants[4]) if len(participants) > 4 else None
+        participant5 = json.dumps(participants[5]) if len(participants) > 5 else None
+        participant6 = json.dumps(participants[6]) if len(participants) > 6 else None
+        participant7 = json.dumps(participants[7]) if len(participants) > 7 else None
+        participant8 = json.dumps(participants[8]) if len(participants) > 8 else None
+        participant9 = json.dumps(participants[9]) if len(participants) > 9 else None
+
         # Execute the upsert operation
         cur.execute(sql, (
-            matchData['metadata']['matchId'],
-            timestampToDate(matchData['info']['gameStartTimestamp']),
-            matchDataJson,
-
+            matchid, matchDateTime, matchMetadata, matchInfo,
+            participant0, participant1, participant2, participant3, participant4,
+            participant5, participant6, participant7, participant8, participant9
         ))
         conn.commit()
-        cPrint(f"Match {matchData['metadata']['matchId']} upserted successfully.", 'green')
+        cPrint(f"Match {matchid} upserted successfully.", 'green')
         return True
     except (Exception, ps.DatabaseError) as error:
         cPrint(f"Error upserting Match data: {error}", 'red')
-
+        return False
     finally:
         if conn is not None:
             conn.close()
@@ -443,7 +497,7 @@ def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
         count (int): The number of matches to fetch in each batch. Defaults to 100.
 
     Returns:
-        list: A list of match data for the summoner.
+        list: A list of all summoner matches IDS
     """
 
     # Construct the URL for fetching matches
@@ -511,35 +565,135 @@ def upsertListOfMatches(matchesList):
     cPrint('Checking what IDS are missing from DB and inserting...', 'yellow')
     matchIdsFromDB = getMatchIdsFromDB()
     missingMatches = findMissingMatches(getMatchIdsFromDB(), matchesList)
-    if len(missingMatches) == 0:
+    if matchIdsFromDB == 'empty':
+        cPrint('Adding all matches from list (DB is empty)', 'yellow')
+    elif len(missingMatches) == 0:
         cPrint('No missing matches found (The DB is updated with latest Summoner Matches!)', 'green')
         cPrint('Exiting...', 'green')
         return None
-    elif len(matchIdsFromDB) == 0:
-        cPrint('Adding all matches from list (DB is empty)', 'yellow')
     else:
         matchesList = missingMatches
     matchesAdded = 0
     requestCount = 0
     for matchid in matchesList:
-        while True:
-            cPrint(f'Match ID:{matchid}', 'cyan')
-            matchData = getMatchData(matchid)
-            requestCount += 1
-            if type(matchData) is dict:
-                matchUpserted = upsertMatchData(matchData)
-                if matchUpserted:
-                    cPrintS(f'{{green}}Added Match ID {{cyan}}{matchid}')
-                    matchesAdded += 1
-                    cPrintS(
-                        f'{{green}}Matches Added till now: {{cyan}}{matchesAdded}{{green}} out of{{cyan}} {len(missingMatches)}{{green}} matches')
-                    break  # Successfully processed the match, break the while loop to move to the next match
-            else:
-                cPrint(f'Match {matchid} Data could not be found, skipping...', 'yellow')
-                break  # If there's no data, and it's not a rate limit, move to the next match
+        try:
+            while True:
+                cPrint(f'Match ID:{matchid}', 'cyan')
+                matchData = getMatchData(matchid)
+                requestCount += 1
+                if type(matchData) is dict:
+                    matchUpserted = upsertMatchData(matchData)
+                    if matchUpserted:
+                        cPrintS(f'{{green}}Added Match ID {{cyan}}{matchid}')
+                        matchesAdded += 1
+                        cPrintS(
+                            f'{{green}}Matches Added till now: {{cyan}}{matchesAdded}{{green}} out of{{cyan}} {len(missingMatches)}{{green}} matches')
+                        break  # Successfully processed the match, break the while loop to move to the next match
+                else:
+                    cPrint(
+                        f'Match {matchid} Data could not be found, skipping... {len(missingMatches) - requestCount} Matches Left',
+                        'yellow')
+                    upsertErrorToDB(matchid, matchData)
+                    break  # If there's no data, and it's not a rate limit, move to the next match
+        except Exception as e:
+            errorCode = getattr(e,'obj',None)
+            if errorCode is not None:
+                cPrintS(
+                    f"{{yellow}}Error processing match {{cyan}} {matchid}, {{red}}Request couldn't find the Match Data\n"
+                    f"{e}:(Cant .json() because error code was returned instead of matchData {{cyan}}")
+                upsertErrorToDB(matchid, errorCode)
+                continue  # Skip to the next match ID
 
     cPrintS(
         f'{{green}}Finished! Matches Added: {{cyan}}{matchesAdded}{{green}} out of {{cyan}}{len(missingMatches)}{{green}} matches found')
+
+
+@myLogger
+def upsertErrorToDB(match_id, error_code):
+    """
+    Upserts an error log into the public.upsert_errors table with validation
+    to prevent logging the same error code for a match ID more than once.
+
+    Parameters:
+    - match_id (str): The ID of the match.
+    - error_code (int): The error code encountered during the upsert attempt.
+    - db_params (dict): Database connection parameters including dbname, user, password, and host.
+    """
+    # SQL command to check for existing matchid with the same error code
+    check_sql = """
+    SELECT EXISTS(
+        SELECT 1 FROM public.upsert_errors
+        WHERE matchid = %s AND errorcode = %s
+    );
+    """
+
+    # SQL command for upsert
+    upsert_sql = """
+    INSERT INTO public.upsert_errors (matchid, upsertattemptdatetime, errorcode)
+    VALUES (%s, %s, %s)
+    ON CONFLICT (matchid)
+    DO UPDATE SET
+        upsertattemptdatetime = EXCLUDED.upsertattemptdatetime,
+        errorcode = EXCLUDED.errorcode;
+    """
+
+    # Establish a connection to the database
+    conn = None
+    cur = None  # Initialize cur to None
+    try:
+        conn = connect_db()
+        cur = conn.cursor()
+
+        # Check if the error for the match ID already exists
+        cur.execute(check_sql, (match_id, error_code))
+        exists = cur.fetchone()[0]
+
+        if exists:
+            cPrintS(f"{{green}}Match ID {match_id} with error code {error_code} is already logged.")
+        else:
+            # Current timestamp
+            now = datetime.now()
+
+            # Execute the upsert
+            cur.execute(upsert_sql, (match_id, now, error_code))
+
+            # Commit the transaction
+            conn.commit()
+
+            cPrintS(f"{{yellow}}Upsert error for match ID {match_id} logged successfully.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+@myLogger
+def getErrorMatchesFromDB():
+    """
+    Fetches all match IDs from the 'matches' table in the database.
+
+    Establishes a connection to the database, retrieves all match IDs
+    from the 'matches' table, closes the database connection, and returns
+    a list of match IDs.
+
+    Returns:
+        list: A list of match IDs from the 'matches' table.
+    """
+    conn = connect_db()
+    cur = conn.cursor()
+    # Fetch all match IDs
+    cur.execute("SELECT matchid FROM upsert_errors;")
+    matchesList = [row[0] for row in cur.fetchall()]
+
+    # Close the connection
+    cur.close()
+    conn.close()
+    return matchesList
 
 
 @myLogger
@@ -783,6 +937,19 @@ def getSummonerRankedSoloData(summonerID):
 
 @myLogger
 def upsertSummonersRankedSoloData():
+    """
+    This function updates the ranked solo data for each summoner in the database.
+
+    It first retrieves the list of summoner IDs from the database. Then, for each summoner, it fetches the ranked solo data
+    and updates the corresponding record in the database.
+
+    If the function encounters an error while connecting to the database or executing the SQL commands, it prints the error
+    message. After processing all summoners, it closes the database connection.
+
+    Raises:
+        Exception: If an error occurs while connecting to the database or executing the SQL commands.
+    """
+
     conn = None
     try:
         # Connect to the PostgreSQL database
@@ -939,6 +1106,7 @@ def getSummonerWinLossRatioFromDB(summonerName, matchesList):
 
     return wins, losses
 
+
 @st.cache_data
 @myLogger
 def getSummonerHoursAndGamesFromDB(summonerName, matchesList):
@@ -952,26 +1120,10 @@ def getSummonerHoursAndGamesFromDB(summonerName, matchesList):
     minutesPlayed = ((hoursPlayedInSeconds / 3600) - hoursPlayed) * 60
     return hoursPlayed, round(minutesPlayed), len(matchesList)
 
+
 @st.cache_data
 @myLogger
 def getChampionPoolDiversityAndFavoriteChampionFromDB(summonerName, matchesList):
-    """
-    Retrieves the champion pool diversity and the most played champion for a given summoner.
-
-    This function iterates over a list of matches, retrieves the champion played by the summoner in each match,
-    and keeps a count of the number of times each champion was played. It then identifies the most played champion
-    and the number of times it was played. If the most played champion was only played once, it is set to None.
-
-    Parameters:
-    summonerName (str): The name of the summoner.
-    matchesList (list): A list of match IDs.
-
-    Returns:
-    tuple[Optional[champion], timesplayed, Dict[champion, timesplayed]]:
-        - The most played champion (or None if the most played champion was only played once)
-        - The number of times the most played champion was played
-        - A dictionary mapping each champion to the number of times it was played by the summoner
-    """
     cPrintS(
         f'{{green}}Found {{cyan}}{len(matchesList)}{{green}} matches this week for {{cyan}}{summonerName}')
     championPool = {}
@@ -984,10 +1136,17 @@ def getChampionPoolDiversityAndFavoriteChampionFromDB(summonerName, matchesList)
             championPool[championName] += 1
         else:
             championPool[championName] = 1
-    mostPlayedChampion = max(championPool, key=championPool.get)
-    mostPlayedTimes = championPool[mostPlayedChampion]
-    if mostPlayedTimes == 1:
+
+    if championPool:
+        mostPlayedChampion = max(championPool, key=championPool.get)
+        mostPlayedTimes = championPool[mostPlayedChampion]
+        if mostPlayedTimes == 1:
+            mostPlayedChampion = None
+    else:
+        # Handles the case where no matches were found or no champions were played
         mostPlayedChampion = None
+        mostPlayedTimes = 0
+
     return mostPlayedChampion, mostPlayedTimes, championPool
 
 
@@ -1012,7 +1171,6 @@ def getBestGameFromDB(summonerName, matchesList):
         if kda > bestGameKDA:
             bestGameKDA = kda
             bestGame = match
-        return bestGame,champion, kills, deaths, assists
+        return bestGame, champion, kills, deaths, assists
 
 
-print(getChampionPoolDiversityAndFavoriteChampionFromDB('ShaiBY', getPreviousMonthMatchIDSFromDB('ShaiBY')))
