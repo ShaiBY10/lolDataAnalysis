@@ -1,4 +1,4 @@
-from pyFiles.data import *
+from data import *
 from utils import *
 
 cPrintS('{green} Running main.py')
