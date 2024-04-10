@@ -1036,7 +1036,7 @@ SELECT matchID
 FROM matches
 WHERE datetime >= date_trunc('month', CURRENT_DATE)
   AND datetime < date_trunc('month', CURRENT_DATE) + INTERVAL '1 MONTH'
-  AND (matchdata -> 'info' -> 'queueId')::int = 420
+  AND (matchinfo -> 'queueId')::int = 420
   AND jsonb_path_exists(matchdata, '$.metadata.participants ? (@ == "{summonerPuuid}")');
 
     """
