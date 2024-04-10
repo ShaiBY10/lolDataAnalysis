@@ -15,5 +15,5 @@
 # upsertListOfMatches(get100LatestSummonerMatches(getDataFromConfig(key='SummonerData')['Xavron']['puuid']))
 #
 #
-#
+print('Just runned main.py file!')
 
