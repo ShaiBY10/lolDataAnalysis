@@ -28,6 +28,7 @@ def createCorrelationHeatmap(df, title='Correlation Heatmap'):
         x=correlation_matrix.columns.tolist(),
         y=correlation_matrix.columns.tolist(),
         annotation_text=correlation_matrix.round(2).astype(str).values.tolist(),
+        colorscale='RdYlBu',
         showscale=True
     )
 
@@ -57,7 +58,7 @@ def createCorrelationHeatmap(df, title='Correlation Heatmap'):
 def plotCorrelationHeatmap(matchID,title=None):
     df = createMatchAnalysis(matchID)
     correlationTable, correlationMatrix = createCorrelationHeatmap(df, title)
-    st.plotly_chart(correlationTable,)
+    st.plotly_chart(correlationTable)
     return df
 
 

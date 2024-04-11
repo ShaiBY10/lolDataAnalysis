@@ -720,24 +720,24 @@ def getSummonerMatchDataFromDB(matchID, summonerIndex):
 
     query = f"""
 SELECT 
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'puuid' as puuid,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'summonerName' as summoner_name,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'championName' as champion_name,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'assists' as assists,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'assistMePings' as assist_me_pings,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'totalDamageDealtToChampions' as total_chmp_dmg_dealt,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'magicDamageDealtToChampions' as chmp_magic_dmg_dealt,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'physicalDamageDealtToChampions' as chmp_physical_dmg_dealt,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'trueDamageDealtToChampions' as true_dmg_dealt,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'totalDamageTaken' as total_dmg_taken,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'deaths' as deaths,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'goldEarned' as gold_earned,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'goldSpent' as gold_spent,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'kills' as kills,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'wardsPlaced' as wards_placed,
-        m.matchdata -> 'info' -> 'participants' -> {summonerIndex} -> 'wardsKilled' as wards_killed
+        m.matchparticipant{summonerIndex} -> 'puuid' as puuid,
+        m.matchparticipant{summonerIndex} -> 'summonerName' as summoner_name,
+        m.matchparticipant{summonerIndex} -> 'championName' as champion_name,
+        m.matchparticipant{summonerIndex} -> 'assists' as assists,
+        m.matchparticipant{summonerIndex} -> 'assistMePings' as assist_me_pings,
+        m.matchparticipant{summonerIndex} -> 'totalDamageDealtToChampions' as total_chmp_dmg_dealt,
+        m.matchparticipant{summonerIndex} -> 'magicDamageDealtToChampions' as chmp_magic_dmg_dealt,
+        m.matchparticipant{summonerIndex} -> 'physicalDamageDealtToChampions' as chmp_physical_dmg_dealt,
+        m.matchparticipant{summonerIndex} -> 'trueDamageDealtToChampions' as true_dmg_dealt,
+        m.matchparticipant{summonerIndex} -> 'totalDamageTaken' as total_dmg_taken,
+        m.matchparticipant{summonerIndex} -> 'deaths' as deaths,
+        m.matchparticipant{summonerIndex} -> 'goldEarned' as gold_earned,
+        m.matchparticipant{summonerIndex} -> 'goldSpent' as gold_spent,
+        m.matchparticipant{summonerIndex} -> 'kills' as kills,
+        m.matchparticipant{summonerIndex} -> 'wardsPlaced' as wards_placed,
+        m.matchparticipant{summonerIndex} -> 'wardsKilled' as wards_killed
 FROM matches as m
-WHERE (m.matchdata -> 'info' -> 'gameId') :: bigint = {matchID}
+WHERE (m.matchinfo ->> 'gameId') :: bigint = {matchID}
 """
     return pd.read_sql_query(query, engine)
 
@@ -820,7 +820,7 @@ def getLastNMatchIDSOfSummonerFromDB(summonerName, n=3):
     query = f"""
    SELECT m.matchID
     FROM matches m
-    WHERE m.matchdata -> 'metadata' -> 'participants' @> '["{summonerPuuid}"]'::jsonb
+    WHERE m.matchmetadata -> 'participants' @> '["{summonerPuuid}"]'::jsonb
     ORDER BY datetime desc
     limit {n};
 
