@@ -528,7 +528,7 @@ def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
 
 
 @myLogger
-def get100LatestSummonerMatches(puuid, region='europe'):
+def get50LatestSummonerMatches(puuid, region='europe'):
     """
     Retrieves the latest matches for a given summoner based on their unique identifier (puuid) and region.
 
@@ -544,7 +544,7 @@ def get100LatestSummonerMatches(puuid, region='europe'):
 
     params = {
         "start": 0,
-        "count": 100,
+        "count": 50,
     }
     response = request(url, params=params, headers=requestHeaders)
 
