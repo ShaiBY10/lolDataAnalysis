@@ -28,7 +28,10 @@ async def makeAsyncRequest(session, url, headers, params, max_retries):
                 if response.status == 200:
                     return await response.json()  # Successful response
                 elif response.status == 403:
-                    cPrintS('{{red}}Error 403: Forbidden. Do not forget to renew the API key.')
+                    cPrintS('{{red}}Error 403: Forbidden. Check API key permissions.')
+                    return None
+                elif response.status == 401:
+                    cPrintS(f'{{red}}Error 401: Unauthorized. Do not forget to renew the API key.')
                     return None
                 elif response.status == 404:
                     return None
@@ -90,6 +93,58 @@ class SummonerTracker:
         # If the correct data is not found, return an empty dictionary
         return {}
 
+    async def asyncUpsertSummonersRankedSoloData(self, puuid, tier, division, leaguePoints):
+        """
+         Inserts or updates (upserts) the ranked solo data of a summoner in the PostgreSQL database.
+
+         This function connects to the PostgreSQL database, executes an SQL query to insert the ranked solo data of a summoner.
+         If a record with the same puuid already exists in the database, the function updates the existing record with the new data.
+
+         Parameters:
+         - puuid (str): The unique identifier of the summoner.
+         - tier (str): The tier of the summoner in the ranked solo queue.
+         - division (str): The division of the summoner in the ranked solo queue.
+         - leaguePoints (int): The league points of the summoner in the ranked solo queue.
+
+         Returns:
+         None
+
+         Raises:
+         - Exception: If there is an error executing the SQL query.
+         - psycopg2.DatabaseError: If there is an error connecting to the database or executing the SQL query.
+         """
+
+        conn = None
+        try:
+            # Connect to the PostgreSQL database
+            conn = connect_db()
+            cur = conn.cursor()
+
+            # SQL for upserting the champion link to db from the dictionary
+            upsert_sql = """
+       INSERT INTO "summonerRanks" (puuid, tier, rank, "updateTimestamp", "leaguePoints")
+        VALUES (%s, %s, %s, NOW(), %s)
+        ON CONFLICT (puuid) DO UPDATE SET
+        tier = EXCLUDED.tier,
+        rank = EXCLUDED.rank,
+        "updateTimestamp" = NOW(),
+        "leaguePoints" = EXCLUDED."leaguePoints";
+        """
+
+            # Execute the upsert command for each champion
+            cur.execute(upsert_sql, vars=(puuid, tier, division, leaguePoints))
+            # Commit the changes
+            conn.commit()
+            cPrintS(f"{{cyan}}{getSummonerNameFromPuuid(puuid)} {{green}}Ranked data upserted successfully .")
+
+        except Exception as e:
+            # Handle any exceptions that occur during the upsert process
+            cPrintS(f"{{red}}Error upserting ranked data for {getSummonerNameFromPuuid(puuid)}: {e}")
+            raise e
+        finally:
+            if conn is not None:
+                conn.close()
+
     async def fetchSummonerStatus(self, summoner):
         """Check if the summoner is currently in a game."""
         url = f"https://euw1.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{summoner.puuid}"
@@ -118,7 +173,7 @@ class SummonerTracker:
         else:
             return None
 
-    async def upsertPreGameData(self, summoner, preGameData):
+    async def asyncUpsertPreGameData(self, summoner, preGameData):
         conn = connect_db()
         curr = conn.cursor()
         sql = '''
@@ -181,7 +236,8 @@ class SummonerTracker:
 
         cPrintS(f"{{yellow}}{getCurrentHMS()} - {{blue}}Game {game.gameID} has ended.")
 
-    async def asyncGetMatchKnownParticipantsIndex(self, matchDataResponse):
+    async def asyncGetMatchKnownParticipantsIndex(self, matchDataResponse: object) -> object:
+
         configPuuids = getDataFromConfig(key='puuids')
         summonersFound = 0
         knownMatchParticipants = {}
@@ -239,22 +295,36 @@ class SummonerTracker:
         conn.close()
 
     async def trackSummoner(self, summoner):
-        """Continuously track the summoner's game status."""
+        """
+        Continuously monitor the game status of a summoner.
+
+        This function continuously checks if the given summoner is in a game. If the summoner is in a game,
+        it fetches and stores the pre-game data, waits for the game to end, and then fetches and stores
+        the post-game data. If the summoner is not in a game, it sleeps for a short duration before
+        checking again.
+
+        Args:
+            summoner (Summoner): The summoner object to track.
+        """
         while True:
+            # Check if the summoner is currently in a game
             inGame = await self.fetchSummonerStatus(summoner)
             if inGame:
                 cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{green}}In Game.')
 
-                if summoner.game is None:  # Check if a new game instance is needed
+                # If a new game instance is needed (summoner.game is None), fetch and store the pre-game data
+                if summoner.game is None:
                     cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{blue}}fetching pregame data.')
                     preGameData = await self.fetchPreGameData(summoner)
-                    summoner.game = Game(preGameData['gameID'], preGameData)  # Create a new game instance
+                    summoner.game = Game(preGameData['gameID'],
+                                         preGameData)  # Create a new game instance with pre-game data
                     cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{blue}}upserting preGameData.')
                     if preGameData:
                         cPrintS(
                             f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{green}} Found PreGameData :) ')
-                        preGameDataUpserted = await self.upsertPreGameData(preGameData=preGameData,
-                                                                           summoner=summoner)  # Upsert the pregame data
+                        # Upsert (insert or update) the pre-game data in the database
+                        preGameDataUpserted = await self.asyncUpsertPreGameData(summoner=summoner,
+                                                                                preGameData=preGameData)
                         if preGameDataUpserted:
                             cPrintS(
                                 f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{green}} PreGameData Upserted :)')
@@ -265,23 +335,27 @@ class SummonerTracker:
                         cPrintS(
                             f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{red}} No PreGameData Found :(')
 
-                # Wait until the game ends
+                # Wait until the current game ends
                 cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{magenta}}waiting for game to end.')
                 await self.waitForGameToEnd(summoner=summoner, game=summoner.game)
 
-                # Fetch postgame data
+                # Fetch and store the post-game data
                 cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{blue}}fetching postgame data.')
                 print(f'{summoner.game.gameID = }')
                 postGameData = await self.fetchPostGameData(summoner, gameID=summoner.game.gameID)
-                summoner.game.updatePostGameData(postGameData)  # Update the game instance with postgame data
+                summoner.game.updatePostGameData(postGameData)  # Update the game instance with post-game data
                 cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{blue}}upserting postGameData.')
                 await self.asyncUpsertPostGameData(summoner)
-                cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{green}} PostGameData Upserted :D.')
+                await self.asyncUpsertSummonersRankedSoloData(summoner.puuid, postGameData['postGameMatchData']['tier'],
+                                                              postGameData['postGameMatchData']['rank'],
+                                                              postGameData['postGameMatchData']['leaguePoints'])
+                cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{green}} PostGameData Upserted :).')
                 summoner.game = None  # Clear the game instance
                 await asyncio.sleep(4 * 60)  # Check every 4 minutes if a new game starts
             else:
                 cPrintS(f'{{yellow}}{getCurrentHMS()} - {{cyan}}{summoner.name}: {{red}}Not In Game.')
-                await asyncio.sleep(3 * 60)  # Check 3 minutes if the summoner is in a game
+                await asyncio.sleep(
+                    3 * 60)  # If the summoner is not in a game, wait for 3 minutes before checking again
 
     async def start(self):
         """Start tracking all summoners by initializing the session and launching tasks."""

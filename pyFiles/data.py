@@ -9,11 +9,11 @@ from sqlalchemy import create_engine
 
 from utils import *
 
-dbname = 'LoL'
-user = 'postgres'
-password = '1210'
-host = '192.168.50.209'
-port = '636'
+dbname = getDataFromConfig(key='Database')['DataBaseConnectInfo']['dbname']
+user = getDataFromConfig(key='Database')['DataBaseConnectInfo']['user']
+password = getDataFromConfig(key='Database')['DataBaseConnectInfo']['password']
+port = getDataFromConfig(key='Database')['DataBaseConnectInfo']['port']
+host = getDataFromConfig(key='Database')['DataBaseConnectInfo']['host']
 
 requestHeaders = getDataFromConfig(key='API')['requestHeaders']
 
@@ -528,7 +528,10 @@ def getSummonerNamesFromDB(lower=False):
     conn = connect_db()
     cur = conn.cursor()
     # Fetch all match IDs
-    cur.execute("SELECT name FROM summoners;")
+    cur.execute("""
+    SELECT name FROM summoners
+    WHERE name = 'Xavron' OR name = 'ShaiBY' OR name = 'GuySun';
+    """)
     if lower:
         summonerList = [row[0].lower() for row in cur.fetchall()]
     else:
@@ -1063,49 +1066,6 @@ def getSummonerSoloDuoRank(summonerName):
 
 
 # @myLogger
-def upsertSummonersRankedSoloData():
-    """
-    This function updates the ranked solo data for each summoner in the database.
-
-    It first retrieves the list of summoner IDs from the database. Then, for each summoner, it fetches the ranked solo data
-    and updates the corresponding record in the database.
-
-    If the function encounters an error while connecting to the database or executing the SQL commands, it prints the error
-    message. After processing all summoners, it closes the database connection.
-
-    Raises:
-        Exception: If an error occurs while connecting to the database or executing the SQL commands.
-    """
-
-    conn = None
-    try:
-        # Connect to the PostgreSQL database
-        conn = connect_db()
-        cur = conn.cursor()
-        cur.execute("""SELECT "summonerID" FROM summoners;""")
-        summonerList = [row[0] for row in cur.fetchall()]
-        cPrintS(f'{{green}} Found {{cyan}}{len(summonerList)}{{green}} summoners in the database,'
-                f' upserting ranked data...')
-
-        # SQL for upserting the champion link to db from the dictionary
-        upsert_sql = """
-        UPDATE summoners
-        SET "rankedSoloData" = %s
-        WHERE "summonerID" = %s
-        """
-        for summonerID in summonerList:
-            data = getSummonerRankedSoloData(summonerID)
-            # Execute the upsert command for each champion
-            cur.execute(upsert_sql, (json.dumps(data), summonerID))
-            # Commit the changes
-            conn.commit()
-            cPrintS(f"{{cyan}}{getSummonerNameFromID(summonerID)} {{green}}Ranked data upserted successfully .")
-
-    except (Exception, ps.DatabaseError) as error:
-        print(error)
-    finally:
-        if conn is not None:
-            conn.close()
 
 
 #@st.cache_data
@@ -1298,5 +1258,3 @@ def getBestGameFromDB(summonerName, matchesList):
         if kda > bestGameKDA:
             bestGame = match
         return bestGame, champion, kills, deaths, assists
-
-

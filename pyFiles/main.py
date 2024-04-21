@@ -17,7 +17,6 @@ from utils import *
 # upsertFreeRotation(freeRotation)  # update the free rotation table
 # cPrintS(f'{{green}} Latest free rotation has been updated \n Champions: {freeRotation}')
 #
-# upsertSummonersRankedSoloData()  # update the summoners ranked solo data table
 # cPrintS(f'{{green}} Summoners ranked solo data has been updated')
 #
 # cPrintS(f'{{yellow}} Getting latest matches data for summoners in config and upserting them to the DB')
