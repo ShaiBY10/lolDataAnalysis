@@ -11,9 +11,9 @@ from utils import *
 
 dbname = 'LoL'
 user = 'postgres'
-password = '1210'
-host = '192.168.50.209'
-port = '636'
+password = ''
+host = ''
+port = ''
 
 requestHeaders = getDataFromConfig(key='API')['requestHeaders']
 
