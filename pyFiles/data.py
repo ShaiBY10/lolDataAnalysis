@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import psycopg2 as ps
 import psycopg2.extras
-import requests as re
+import requests
 import streamlit as st
 from sqlalchemy import create_engine
 
@@ -18,8 +18,8 @@ port = '636'
 requestHeaders = getDataFromConfig(key='API')['requestHeaders']
 
 
-@myLogger
-def request(url, headers=requestHeaders, params=None, max_retries=5, defaultRetryAfter=30):
+# @myLogger
+def request(url, headers=None, params=None, max_retries=5, defaultRetryAfter=30):
     """
     A function to make a request to a URL with optional headers and parameters. Automatically retries on rate limit.
 
@@ -32,33 +32,39 @@ def request(url, headers=requestHeaders, params=None, max_retries=5, defaultRetr
     Returns:
     The response object if the status code is 200, the status code if 429 or 404, and the status code with explanation for all other cases.
     """
-    response = None  # Initialize response to ensure it's defined even if the requests.get call fails
     for attempt in range(max_retries):
-        response = re.get(url, headers=headers, params=params)  # Assuming you meant requests.get, not re.get
+        try:
+            response = requests.get(url, headers=headers, params=params)
 
-        if response.status_code == 200:
-            cPrintS(f'{{green}}Request successful.')
-            return response  # Successful request
-        elif response.status_code == 429:
-            # Rate limit hit. Wait and retry.
-            waitTime = response.headers.get('Retry-After', defaultRetryAfter)
-            cPrintS(
-                f'{{yellow}} Function {{cyan}}request{{yellow}} hit the rate limit, Sleeping for {waitTime} and retrying...')
-            countdown(int(waitTime))  # Using your custom countdown function for waiting
-            continue  # Go to the next iteration and retry the request
-        elif response.status_code == 404:
-            cPrintS('{red}Data not found.')
-            return response.status_code
-        else:
-            # Other errors
-            cPrintS(f'{{red}}Error Code: {response.status_code} || {explainStatus(response.status_code)}')
-            return response.status_code
+            if response.status_code == 200:
+                cPrintS(f'{{green}}Request successful.')
+                return response
+            elif response.status_code == 429:
+                # Rate limit hit. Wait and retry.
+                waitTime = response.headers.get('Retry-After', defaultRetryAfter)
+                cPrintS(
+                    f'{{yellow}}Function {{cyan}}request{{yellow}} hit the rate limit, Sleeping for {waitTime} seconds and retrying...')
+                countdown(int(waitTime))  # Using your custom countdown function for waiting
+                continue
+            elif response.status_code == 404:
+                cPrintS(f'{{yellow}}Request Function is returning: 404 Not Found.')
+                return response
+            else:
+                # Other errors
+                cPrintS(f'{{red}}Error Code: {response.status_code} || {explainStatus(response.status_code)}')
+                return response
 
-    cPrintS('{red}Max retries reached. Returning the last response status code.')
-    return response.status_code if response else 'noResponse'  # Ensure there's a fallback if response was never assigned
+        except requests.exceptions.RequestException as e:
+            cPrintS(f'{{red}}Error making request: {e}')
+            if attempt == max_retries - 1:
+                cPrintS('{red}Max retries reached. Unable to resolve the request error.')
+                return f'Error: {str(e)}'
+
+    # If all retries fail
+    return 'Failed after maximum retries'
 
 
-@myLogger
+# @myLogger
 def connect_db():
     return ps.connect(
         dbname=dbname,
@@ -69,7 +75,56 @@ def connect_db():
     )
 
 
-@myLogger
+def updateConfigSummonerData(configFilePath='../config/config.json'):
+    # Load JSON data from file
+    with open(configFilePath, 'r') as file:
+        json_data = json.load(file)
+
+    # Ensure the puuids list exists in JSON data
+    if 'puuids' not in json_data:
+        json_data['puuids'] = []
+
+    # Connect to the PostgreSQL database
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    # Fetch all summoners from the database
+    query = """
+    SELECT puuid, name, "summonerID"
+    FROM summoners;
+    """
+    cursor.execute(query)
+    all_summoners = cursor.fetchall()
+
+    # Ensure SummonerData section exists
+    if 'SummonerData' not in json_data:
+        json_data['SummonerData'] = {}
+
+    # Add each summoner to JSON if not already present and collect puuids
+    for summoner in all_summoners:
+        fetched_puuid, name, summonerID = summoner
+        if name not in json_data['SummonerData']:
+            json_data['SummonerData'][name] = {
+                'summonerName': name,
+                'puuid': fetched_puuid,
+                'summonerID': summonerID
+            }
+            print(f'Added {name} to SummonerData in config.json')  # Assuming cPrintS is a custom print function
+
+        # Add puuid to puuids list if not already there
+        if fetched_puuid not in json_data['puuids']:
+            json_data['puuids'].append(fetched_puuid)
+
+    # Close the database connection
+    cursor.close()
+    conn.close()
+
+    # Write the updated JSON data back to the file
+    with open(configFilePath, 'w') as file:
+        json.dump(json_data, file, indent=4)
+
+
+# @myLogger
 def getLatestVersion():
     """
     Retrieves the latest version of the game data from the Riot Games API.
@@ -96,7 +151,7 @@ def getLatestVersion():
     return versions[0]
 
 
-@myLogger
+# @myLogger
 def updateLatestVersion():
     """
     This function retrieves the latest version of the game, gets the current timestamp,
@@ -123,7 +178,7 @@ def updateLatestVersion():
     cPrint(f"Latest version {latest_version} saved on {timestamp}", 'cyan')
 
 
-@myLogger
+# @myLogger
 def getLatestChampions(version, language='en_US'):
     """
     getLatestChampions is a function that fetches the latest champions from the API using the given version and
@@ -150,7 +205,7 @@ def getLatestChampions(version, language='en_US'):
     return champions
 
 
-@myLogger
+# @myLogger
 def updateLatestChampions(champions_dict):
     # SQL to upsert champion data
     upsert_sql = """
@@ -179,7 +234,7 @@ def updateLatestChampions(champions_dict):
             conn.close()
 
 
-@myLogger
+# @myLogger
 def getChampionRotations():
     """
     getChampionRotations is a function that fetches the currently free-to-play champion rotations from the Riot Games
@@ -210,7 +265,7 @@ def getChampionRotations():
     return freeChampions
 
 
-@myLogger
+# @myLogger
 def upsertFreeRotation(free_champions):
     # free_champions is a list of champion IDs for the current week
 
@@ -237,7 +292,7 @@ def upsertFreeRotation(free_champions):
             conn.close()
 
 
-@myLogger
+# @myLogger
 def getSummonerData(summonerName):
     """
     Retrieves summoner data from the Riot Games API for a specified summoner name in the EUW (Europe West) region.
@@ -265,22 +320,18 @@ def getSummonerData(summonerName):
 
     response = request(infoURL, headers=requestHeaders)
     summonerData = response.json()
+    summonerData.update({'name': summonerName})
     return summonerData
 
 
-@myLogger
+# @myLogger
 def upsertSummonerData(summonerData):
     sql = """
-    INSERT INTO summoners (puuid, id, accountId, name, profileIconId, revisionDate, summonerLevel) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s) 
-    ON CONFLICT (puuid) 
-    DO UPDATE SET 
-        id = EXCLUDED.id, 
-        accountId = EXCLUDED.accountId, 
-        name = EXCLUDED.name, 
-        profileIconId = EXCLUDED.profileIconId, 
-        revisionDate = EXCLUDED.revisionDate, 
-        summonerLevel = EXCLUDED.summonerLevel;
+    INSERT INTO summoners (puuid, name, summonerLevel, "summonerID") 
+    VALUES (%s, %s, %s, %s)
+    ON CONFLICT (puuid) DO UPDATE SET
+        summonerLevel = EXCLUDED.summonerLevel,
+        "summonerID" = EXCLUDED."summonerID"
     """
 
     conn = None
@@ -290,12 +341,9 @@ def upsertSummonerData(summonerData):
         # Execute the upsert operation
         cur.execute(sql, (
             summonerData['puuid'],
-            summonerData['id'],
-            summonerData['accountId'],
             summonerData['name'],
-            summonerData['profileIconId'],
-            summonerData['revisionDate'],
-            summonerData['summonerLevel']
+            summonerData['summonerLevel'],
+            summonerData['id'],
         ))
         conn.commit()
         cPrint(f"Summoner {summonerData['name']} upserted successfully.", 'green')
@@ -306,7 +354,12 @@ def upsertSummonerData(summonerData):
             conn.close()
 
 
-@myLogger
+# testPlayer = getSummonerData('DenSygeKamel69')
+# upsertSummonerData(testPlayer)
+# updateConfigSummonerData()
+
+
+# @myLogger
 def getMatchData(matchID):
     """
     Retrieve match data from the Riot Games API using the provided match ID.
@@ -322,7 +375,7 @@ def getMatchData(matchID):
     return response.json() if response.status_code == 200 else response.status_code
 
 
-@myLogger
+# @myLogger
 def upsertMatchData(matchData):
     """
     This function inserts or updates (upserts) match data into the 'matches' table in the database.
@@ -411,7 +464,7 @@ def upsertMatchData(matchData):
             conn.close()
 
 
-@myLogger
+# @myLogger
 def getMatchIdsFromDB():
     """
     Fetches all match IDs from the 'matches' table in the database.
@@ -435,6 +488,7 @@ def getMatchIdsFromDB():
     return matchesList
 
 
+# @myLogger
 def getChampionsFromDB():
     """
     Fetches all match IDs from the 'matches' table in the database.
@@ -458,8 +512,8 @@ def getChampionsFromDB():
     return matchesList
 
 
-@myLogger
-@st.cache_data
+# @myLogger
+#@st.cache_data
 def getSummonerNamesFromDB(lower=False):
     """
     Fetches all summoner names from the 'summoners' table in the database.
@@ -486,7 +540,7 @@ def getSummonerNamesFromDB(lower=False):
     return summonerList
 
 
-@myLogger
+# @myLogger
 def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
     """
     Retrieves matches for a summoner identified by their PUUID.
@@ -527,7 +581,7 @@ def getAllSummonerMatches(puuid, region='europe', start=0, count=100):
     return matches
 
 
-@myLogger
+# @myLogger
 def get50LatestSummonerMatches(puuid, region='europe'):
     """
     Retrieves the latest matches for a given summoner based on their unique identifier (puuid) and region.
@@ -551,7 +605,7 @@ def get50LatestSummonerMatches(puuid, region='europe'):
     return response.json()
 
 
-@myLogger
+# @myLogger
 def upsertListOfMatches(matchesList):
     """
     A function that checks for missing IDs in the DB, retrieves their data, and upserts it.
@@ -609,7 +663,7 @@ def upsertListOfMatches(matchesList):
         f'{{green}}Finished! Matches Added: {{cyan}}{matchesAdded}{{green}} out of {{cyan}}{len(missingMatches)}{{green}} matches found')
 
 
-@myLogger
+# @myLogger
 def upsertErrorToDB(match_id, error_code):
     """
     Upserts an error log into the public.upsert_errors table with validation
@@ -673,7 +727,7 @@ def upsertErrorToDB(match_id, error_code):
             conn.close()
 
 
-@myLogger
+# @myLogger
 def getErrorMatchesFromDB():
     """
     Fetches all match IDs from the 'matches' table in the database.
@@ -697,11 +751,11 @@ def getErrorMatchesFromDB():
     return matchesList
 
 
-@myLogger
+# @myLogger
 def getSummonerMatchDataFromDB(matchID, summonerIndex):
     """
     Retrieves specific match data for a summoner from a PostgreSQL database.
-    With the data from this function it is poissible to plot the correlation matrix and more analysis
+    With the data from this function it is possible to plot the correlation matrix and more analysis
 
     Parameters:
     - matchID: int, the ID of the match to retrieve data for
@@ -742,7 +796,7 @@ WHERE (m.matchinfo ->> 'gameId') :: bigint = {matchID}
     return pd.read_sql_query(query, engine)
 
 
-@myLogger
+# @myLogger
 def getMatchDataFromDB(matchID):
     # Connect to the database using your connect_db function
     conn = connect_db()
@@ -782,14 +836,14 @@ def getMatchDataFromDB(matchID):
         return None
 
 
-@myLogger
+# @myLogger
 def getMatchKnownParticipantsIndex(matchID):
     configPuuids = getDataFromConfig(key='puuids')
     summonersFound = 0
 
     df = getMatchDataFromDB(matchID)
     participantsIndexes = {}
-    for i, participant in enumerate(df['matchmetadata']['participants']):
+    for i, participant in enumerate(df['matchmetadata']["participants"]):
         if participant in configPuuids:
             summonersFound += 1
             participantsIndexes[participant] = i
@@ -801,7 +855,7 @@ def getMatchKnownParticipantsIndex(matchID):
 
 
 @st.cache_resource
-@myLogger
+# @myLogger
 def getLastNMatchIDSOfSummonerFromDB(summonerName, n=3):
     """
     A function to retrieve the last N match IDs of a summoner from the database.
@@ -829,8 +883,8 @@ def getLastNMatchIDSOfSummonerFromDB(summonerName, n=3):
     return queryResponse.iloc[:, 0].tolist()
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getGameStartTimestampAndSummonerChampionName(matchID, summonerName):
     summonerPuuid = getDetailsFromSummonerName(summonerName)
     knownMatchParticipants = getMatchKnownParticipantsIndex(matchID)
@@ -844,7 +898,7 @@ def getGameStartTimestampAndSummonerChampionName(matchID, summonerName):
     return matchID, matchStartDate, summonerChampionPlayed
 
 
-@myLogger
+# @myLogger
 def downloadChampionIcons():
     """
     Downloads missing League of Legends champion icons based on the current list of champions in the database.
@@ -891,7 +945,7 @@ def downloadChampionIcons():
         cPrintS('{{green}}All champion icons are up-to-date.')
 
 
-@myLogger
+# @myLogger
 def upsertChampionLinksToDB(championsLinks):
     """
     Upsert links for champions in the PostgreSQL database.
@@ -927,7 +981,7 @@ def upsertChampionLinksToDB(championsLinks):
             conn.close()
 
 
-@myLogger
+# @myLogger
 def getSummonerRankedSoloData(summonerID):
     """
     Retrieves the ranked stats of a summoner from the Riot Games API.
@@ -966,7 +1020,49 @@ def getSummonerRankedSoloData(summonerID):
     return rankedSoloData
 
 
-@myLogger
+# @myLogger
+def getSummonerSoloDuoRank(summonerName):
+    """
+    Retrieves the ranked stats of a summoner from the Riot Games API.
+
+    This function constructs a request to the Riot Games API, specifically to the League of Legends ranked stats endpoint
+    to fetch details about a summoner/player's ranked stats in the game League of Legends. It requires a valid API key
+    provided by Riot Games for developers. The API key should be set in the variable `API_key` before calling this function.
+
+    Parameters:
+    - summonerID (str): The ID of the summoner/player for which to retrieve ranked stats.
+
+    Returns:
+    - dict: A dictionary containing various pieces of information about the summoner's ranked stats.
+    The structure and content of the returned data are defined by the Riot Games API and may change over time.
+
+    Note: - The function requires an internet connection to access the Riot Games API. - You must have a valid API
+    key from Riot Games and have it assigned to the variable `API_key`. - Proper error handling for issues such as
+    network errors or invalid API keys is not implemented in this basic example.
+    """
+
+    summonerID = getDetailsFromSummonerName(summonerName, 'summonerID')
+
+    # Construct the URL for fetching ranked stats
+    rankedStatsURL = f"https://euw1.api.riotgames.com/lol/league/v4/entries/by-summoner/{summonerID}"
+
+    # Send a GET request to the API
+    response = request(rankedStatsURL, headers=requestHeaders)
+
+    # Convert the response to JSON format
+    rankedStatsData = response.json()
+
+    for queueType in rankedStatsData:
+        if queueType['queueType'] == 'RANKED_SOLO_5x5':
+            tier = queueType['tier']
+            rank = queueType['rank']
+            lp = queueType['leaguePoints']
+            return tier, rank, lp
+
+    return None
+
+
+# @myLogger
 def upsertSummonersRankedSoloData():
     """
     This function updates the ranked solo data for each summoner in the database.
@@ -1012,8 +1108,8 @@ def upsertSummonersRankedSoloData():
             conn.close()
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getSummonerRankFromDB(summonerName):
     """
     Retrieves the ranked stats of a summoner from the PostgreSQL database.
@@ -1047,8 +1143,8 @@ def getSummonerRankFromDB(summonerName):
     return rankedStatsData
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getThisWeekMatchIDSFromDB(summonerName):
     """
     Fetches all match IDs from the 'matches' table in the database.
@@ -1084,8 +1180,8 @@ WHERE datetime >= date_trunc('month', CURRENT_DATE)
     return matchesList
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getPreviousMonthMatchIDSFromDB(summonerName):
     """
     Fetches all match IDs from the 'matches' table in the database.
@@ -1120,8 +1216,8 @@ def getPreviousMonthMatchIDSFromDB(summonerName):
     return matchesList
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getSummonerWinLossRatioFromDB(summonerName, matchesList):
     cPrintS(f'{{green}}Found {{cyan}}{len(matchesList)}{{green}} matches for {{cyan}}{summonerName}')
     wins = 0
@@ -1138,8 +1234,8 @@ def getSummonerWinLossRatioFromDB(summonerName, matchesList):
     return wins, losses
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getSummonerHoursAndGamesFromDB(summonerName, matchesList):
     cPrintS(f'{{green}}Found {{cyan}}{len(matchesList)}{{green}} matches for {{cyan}}{summonerName}')
     hoursPlayedInSeconds = 0
@@ -1152,8 +1248,8 @@ def getSummonerHoursAndGamesFromDB(summonerName, matchesList):
     return hoursPlayed, round(minutesPlayed), len(matchesList)
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getChampionPoolDiversityAndFavoriteChampionFromDB(summonerName, matchesList):
     cPrintS(
         f'{{green}}Found {{cyan}}{len(matchesList)}{{green}} matches this week for {{cyan}}{summonerName}')
@@ -1181,8 +1277,8 @@ def getChampionPoolDiversityAndFavoriteChampionFromDB(summonerName, matchesList)
     return mostPlayedChampion, mostPlayedTimes, championPool
 
 
-@st.cache_data
-@myLogger
+#@st.cache_data
+# @myLogger
 def getBestGameFromDB(summonerName, matchesList):
     cPrintS(f'{{green}}Found {{cyan}}{len(matchesList)}{{green}} matches for {{cyan}}{summonerName}')
     bestGame = None
@@ -1200,6 +1296,7 @@ def getBestGameFromDB(summonerName, matchesList):
         else:
             kda = (assists + kills) / deaths
         if kda > bestGameKDA:
-            bestGameKDA = kda
             bestGame = match
         return bestGame, champion, kills, deaths, assists
+
+

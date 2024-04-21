@@ -25,7 +25,6 @@ def myLogger(func):
     return wrapper
 
 
-@myLogger
 def cPrint(text, color_name):
     """
     Prints the given text in the terminal with the specified color.
@@ -71,7 +70,15 @@ def cPrintS(text):
         "blue": "94",
         "magenta": "95",
         "cyan": "96",
-        "white": "97"
+        "white": "97",
+        "bgred": "101",  # red background
+        "bggreen": "102",  # green background
+        "bgyellow": "103",  # yellow background
+        "bgblue": "104",  # blue background
+        "bgmagenta": "105",  # magenta background
+        "bgcyan": "106",  # cyan background
+        "bgwhite": "107",  # white background
+        "bgreset": "49"  # reset background
     }
 
     # Split the text into parts based on color markers
@@ -93,15 +100,13 @@ def cPrintS(text):
     print(final_text)
 
 
-@myLogger
-def getDataFromConfig(file='/home/shai/projects/lolDataAnalysis/config/config.json', key=None):
+#@myLogger
+def getDataFromConfig(file='../config/config.json', key=None):
     """
     Retrieve data from the specified configuration file based on the provided key.
 
     :param file: The path to the configuration file (default is 'config.json')
     :param key: The key for the value to retrieve from the configuration file
-    :type file: str
-    :type key: str
     :return: The value corresponding to the provided key in the configuration file
     :rtype: any
     """
@@ -148,7 +153,7 @@ def coloredBar(percentage):
     return bar
 
 
-@myLogger
+#@myLogger
 def countdown(secs):
     """
     A function that performs a countdown for the given number of seconds.
@@ -173,7 +178,7 @@ def countdown(secs):
     cPrint("\n<<< Im up, Let's keep going >>>", 'green')
 
 
-@myLogger
+#@myLogger
 def saveOutput(data, fileName='output.json'):
     """
     This function saves the given data to a file in JSON format.
@@ -190,7 +195,7 @@ def saveOutput(data, fileName='output.json'):
         json.dump(data, file)
 
 
-@myLogger
+#@myLogger
 def saveDataFrameToCSV(df, fileName='df.csv'):
     """
     Save the given DataFrame to a CSV file.
@@ -206,7 +211,7 @@ def saveDataFrameToCSV(df, fileName='df.csv'):
     df.to_csv(fileName, index=False)
 
 
-@myLogger
+#@myLogger
 def explainStatus(status_code):
     """
     Return an explanation for a given HTTP status code.
@@ -219,7 +224,7 @@ def explainStatus(status_code):
              "request syntax).",
         401: "401 Unauthorized - Authentication is required and has failed or has not yet been provided.",
         403: "403 Forbidden - The server understood the request but refuses to authorize it.",
-        404: "404 Data Not Found - The requested resource could not be found but may be available in the future.",
+        404: "404 Data Not Found - The requested resource could not be foundd.",
         405: "405 Method Not Allowed - A request method is not supported for the requested resource.",
         415: "415 Unsupported Media Type - The request entity has a media type which the server or resource does not "
              "support.",
@@ -236,7 +241,7 @@ def explainStatus(status_code):
     return status_explanations.get(status_code, "Unknown HTTP Status Code")
 
 
-@myLogger
+#@myLogger
 def timestampToDate(mili_timestamp, timezone='UTC', convert=False):
     """
     Convert a Unix timestamp in milliseconds to a readable date. If 'convert' is True,
@@ -271,7 +276,7 @@ def timestampToDate(mili_timestamp, timezone='UTC', convert=False):
     return dt_object.strftime('%Y-%m-%d %H:%M:%S')
 
 
-@myLogger
+#@myLogger
 def findMissingMatches(DB_list, NewList):
     """
     A function to find missing matches between two lists.
@@ -292,8 +297,9 @@ def findMissingMatches(DB_list, NewList):
         cPrint('DB is empty, skipping findMissingMatches Function', 'yellow')
         return NewList
 
-@myLogger
-def getDetailsFromSummonerName(summonerName,detail='puuid'):
+
+#@myLogger
+def getDetailsFromSummonerName(summonerName, detail='puuid'):
     """
     Returns the PUUID for a given summoner name based on the provided configuration.
 
@@ -315,12 +321,12 @@ def getDetailsFromSummonerName(summonerName,detail='puuid'):
     # Return None if the summoner name is not found
     return None
 
-@myLogger
-def getSummonerNameFromID(summonerID):
 
+#@myLogger
+def getSummonerNameFromID(summonerID):
     # Access the 'SummonerData' from the config
     config = getDataFromConfig()
-    for summoner,data in config['SummonerData'].items():
+    for summoner, data in config['SummonerData'].items():
         if data['summonerID'] == summonerID:
             return data['summonerName']
 
@@ -328,3 +334,13 @@ def getSummonerNameFromID(summonerID):
     return None
 
 
+#@myLogger
+def getSummonerNameFromPuuid(puuid):
+    # Access the 'SummonerData' from the config
+    config = getDataFromConfig()
+    for summoner, data in config['SummonerData'].items():
+        if data['puuid'] == puuid:
+            return data['summonerName']
+
+    # Return None if the summoner name is not found
+    return None
