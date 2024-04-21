@@ -101,7 +101,7 @@ def cPrintS(text):
 
 
 #@myLogger
-def getDataFromConfig(file='/home/Desktop/config.json', key=None):
+def getDataFromConfig(file='/home/shai/Desktop/config.json', key=None):
     """
     Retrieve data from the specified configuration file based on the provided key.
 
