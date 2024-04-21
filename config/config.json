@@ -5,7 +5,7 @@
             "Accept-Language": "en-US,en;q=0.7",
             "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
             "Origin": "https://developer.riotgames.com",
-            "X-Riot-Token": "RGAPI-4848b051-3149-4cd8-86c4-5553bc6729c7"
+            "X-Riot-Token": ""
         }
     },
     "SummonerData": {
